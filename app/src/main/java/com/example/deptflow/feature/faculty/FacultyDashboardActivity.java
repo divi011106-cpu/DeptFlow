@@ -1,0 +1,140 @@
+package com.example.deptflow.feature.faculty;
+
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.deptflow.R;
+import com.example.deptflow.feature.faculty.models.FacultyUser;
+import com.example.deptflow.feature.faculty.repository.SessionManager;
+import com.example.deptflow.feature.faculty.repository.TaskRepository;
+
+/**
+ * Main dashboard for Faculty members in DeptFlow.
+ * Displays greeting, role, department, calculated task statistics,
+ * and quick-action navigation cards.
+ */
+public class FacultyDashboardActivity extends AppCompatActivity {
+
+    private TextView tvFacultyName;
+    private TextView tvFacultyRole;
+    private TextView tvFacultyDept;
+    private TextView tvCountTotal;
+    private TextView tvCountPending;
+    private TextView tvCountInProgress;
+    private TextView tvCountCompleted;
+
+    private SessionManager sessionManager;
+    private TaskRepository taskRepository;
+    private FacultyUser currentUser;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_faculty_dashboard);
+
+        sessionManager = SessionManager.getInstance(this);
+        taskRepository = TaskRepository.getInstance(this);
+
+        initViews();
+        setupUserData();
+        setupClickListeners();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Refresh statistics when returning from MyTasks or TaskDetails
+        updateStatistics();
+    }
+
+    private void initViews() {
+        tvFacultyName = findViewById(R.id.tv_faculty_name);
+        tvFacultyRole = findViewById(R.id.tv_faculty_role);
+        tvFacultyDept = findViewById(R.id.tv_faculty_dept);
+
+        tvCountTotal = findViewById(R.id.tv_count_total);
+        tvCountPending = findViewById(R.id.tv_count_pending);
+        tvCountInProgress = findViewById(R.id.tv_count_inprogress);
+        tvCountCompleted = findViewById(R.id.tv_count_completed);
+    }
+
+    private void setupUserData() {
+        currentUser = sessionManager.getCurrentUser();
+        if (currentUser != null) {
+            tvFacultyName.setText(currentUser.getName());
+            tvFacultyRole.setText(currentUser.getRole());
+            tvFacultyDept.setText(currentUser.getDepartment());
+        }
+        updateStatistics();
+    }
+
+    private void updateStatistics() {
+        String userId = (currentUser != null) ? currentUser.getUserId() : "FAC-102";
+        int total = taskRepository.getTotalTaskCount(userId);
+        int pending = taskRepository.getPendingTaskCount(userId);
+        int inProgress = taskRepository.getInProgressTaskCount(userId);
+        int completed = taskRepository.getCompletedTaskCount(userId);
+
+        tvCountTotal.setText(String.valueOf(total));
+        tvCountPending.setText(String.valueOf(pending));
+        tvCountInProgress.setText(String.valueOf(inProgress));
+        tvCountCompleted.setText(String.valueOf(completed));
+    }
+
+    private void setupClickListeners() {
+        // My Tasks Action
+        findViewById(R.id.card_action_my_tasks).setOnClickListener(v -> {
+            Intent intent = new Intent(FacultyDashboardActivity.this, MyTasksActivity.class);
+            startActivity(intent);
+        });
+
+        // Communication Action
+        findViewById(R.id.card_action_communication).setOnClickListener(v -> {
+            try {
+                // Navigate to Communication module if implemented
+                Class<?> commClass = Class.forName("com.example.deptflow.communication.CommunicationActivity");
+                Intent intent = new Intent(FacultyDashboardActivity.this, commClass);
+                startActivity(intent);
+            } catch (ClassNotFoundException e) {
+                Toast.makeText(FacultyDashboardActivity.this,
+                        "Communication module is being developed by Member 4",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Profile Action
+        findViewById(R.id.card_action_profile).setOnClickListener(v -> {
+            Intent intent = new Intent(FacultyDashboardActivity.this, FacultyProfileActivity.class);
+            startActivity(intent);
+        });
+
+        // Logout Action
+        findViewById(R.id.btn_logout).setOnClickListener(v -> showLogoutConfirmationDialog());
+    }
+
+    private void showLogoutConfirmationDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.action_logout)
+                .setMessage(R.string.logout_confirmation)
+                .setPositiveButton(R.string.yes, (dialog, which) -> {
+                    sessionManager.logout();
+                    Toast.makeText(FacultyDashboardActivity.this, "Logged out successfully", Toast.LENGTH_SHORT).show();
+                    try {
+                        Class<?> loginClass = Class.forName("com.example.deptflow.auth.LoginActivity");
+                        Intent intent = new Intent(FacultyDashboardActivity.this, loginClass);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                    } catch (ClassNotFoundException e) {
+                        finish();
+                    }
+                })
+                .setNegativeButton(R.string.no, null)
+                .show();
+    }
+}

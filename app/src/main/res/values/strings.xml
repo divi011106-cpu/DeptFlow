@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DeptFlow</string>
+
+    <!-- Faculty Dashboard -->
+    <string name="welcome_faculty">Welcome, Faculty 👋</string>
+    <string name="faculty_role_title">Faculty Member</string>
+    <string name="default_department">IT Department</string>
+    <string name="dashboard_subtitle">Department Operations &amp; Task Center</string>
+
+    <string name="stat_assigned_tasks">Assigned Tasks</string>
+    <string name="stat_pending">Pending</string>
+    <string name="stat_in_progress">In Progress</string>
+    <string name="stat_completed">Completed</string>
+
+    <string name="action_my_tasks">My Tasks</string>
+    <string name="action_my_tasks_desc">View &amp; update all assigned department tasks</string>
+    <string name="action_communication">Communication</string>
+    <string name="action_communication_desc">Department messages, announcements &amp; chat</string>
+    <string name="action_profile">My Profile</string>
+    <string name="action_profile_desc">Faculty credentials, department &amp; settings</string>
+    <string name="action_logout">Logout</string>
+
+    <!-- My Tasks Screen -->
+    <string name="title_my_tasks">My Tasks</string>
+    <string name="subtitle_my_tasks">Tasks assigned to you by the HOD</string>
+    <string name="filter_all">All</string>
+    <string name="filter_pending">Pending</string>
+    <string name="filter_in_progress">In Progress</string>
+    <string name="filter_completed">Completed</string>
+    <string name="no_tasks_found">No tasks found for this filter.</string>
+
+    <!-- Task Details Screen -->
+    <string name="title_task_details">Task Details</string>
+    <string name="label_task_id">Task ID</string>
+    <string name="label_task_title">Task Title</string>
+    <string name="label_description">Description</string>
+    <string name="label_assigned_by">Assigned By</string>
+    <string name="label_assigned_to">Assigned To</string>
+    <string name="label_deadline">Deadline</string>
+    <string name="label_current_status">Current Status</string>
+    <string name="label_priority">Priority</string>
+    <string name="label_update_status_section">Update Task Status</string>
+    <string name="btn_save_status">Save Status</string>
+    <string name="status_update_success">Task status updated successfully</string>
+    <string name="status_update_unchanged">Status is already set to this value</string>
+    <string name="invalid_status_selected">Please select a valid status</string>
+
+    <!-- Status Names -->
+    <string name="status_pending">PENDING</string>
+    <string name="status_in_progress">IN_PROGRESS</string>
+    <string name="status_completed">COMPLETED</string>
+
+    <!-- Priority Names -->
+    <string name="priority_high">HIGH</string>
+    <string name="priority_medium">MEDIUM</string>
+    <string name="priority_low">LOW</string>
+
+    <!-- Profile Screen -->
+    <string name="title_faculty_profile">Faculty Profile</string>
+    <string name="label_faculty_name">Full Name</string>
+    <string name="label_email">Email Address</string>
+    <string name="label_department">Department</string>
+    <string name="label_role">Designation / Role</string>
+    <string name="label_user_id">Faculty ID</string>
+    <string name="btn_edit_profile">Edit Profile</string>
+    <string name="btn_back">Back</string>
+    <string name="profile_edit_dialog_title">Edit Profile</string>
+    <string name="profile_edit_msg">Profile editing is managed by Department Administration.</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Common Navigation -->
+    <string name="back">Back</string>
+    <string name="logout_confirmation">Are you sure you want to logout?</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+
+    <!-- Login & Other module integration -->
+    <string name="login_title">DeptFlow</string>
+    <string name="login_subtitle">Department Management System</string>
+    <string name="login_as_faculty">Login as Faculty</string>
+    <string name="login_as_hod">Login as HOD</string>
+    <string name="hod_module_title">HOD Module</string>
+    <string name="comm_module_title">Communication Module</string>
+    <string name="comm_module_msg">Communication module is implemented by the Communication team.</string>
+</resources>

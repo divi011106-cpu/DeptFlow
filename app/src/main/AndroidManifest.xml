@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.DeptFlow">
+
+        <!-- Login / Auth Activity (Launcher) -->
+        <activity
+            android:name=".auth.LoginActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Faculty Module Activities -->
+        <activity
+            android:name=".feature.faculty.FacultyDashboardActivity"
+            android:exported="true"
+            android:label="@string/app_name" />
+
+        <activity
+            android:name=".feature.faculty.MyTasksActivity"
+            android:exported="false"
+            android:label="@string/title_my_tasks"
+            android:parentActivityName=".feature.faculty.FacultyDashboardActivity" />
+
+        <activity
+            android:name=".feature.faculty.TaskDetailsActivity"
+            android:exported="false"
+            android:label="@string/title_task_details"
+            android:parentActivityName=".feature.faculty.MyTasksActivity" />
+
+        <activity
+            android:name=".feature.faculty.FacultyProfileActivity"
+            android:exported="false"
+            android:label="@string/title_faculty_profile"
+            android:parentActivityName=".feature.faculty.FacultyDashboardActivity" />
+
+        <!-- Placeholder Modules (Member 2 & Member 4) -->
+        <activity
+            android:name=".hod.HodDashboardActivity"
+            android:exported="false"
+            android:label="@string/hod_module_title" />
+
+        <activity
+            android:name=".communication.CommunicationActivity"
+            android:exported="false"
+            android:label="@string/comm_module_title" />
+
+    </application>
+
+</manifest>

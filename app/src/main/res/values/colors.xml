@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand Primary & Accent -->
+    <color name="primary">#1E3A8A</color>
+    <color name="primary_dark">#172554</color>
+    <color name="primary_light">#3B82F6</color>
+    <color name="accent">#0D9488</color>
+    <color name="accent_light">#14B8A6</color>
+    <color name="accent_subtle">#CCFBF1</color>
+
+    <!-- Neutral & Backgrounds -->
+    <color name="background">#F8FAFC</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_card">#FFFFFF</color>
+    <color name="card_stroke">#E2E8F0</color>
+    <color name="divider">#E2E8F0</color>
+
+    <!-- Typography -->
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="text_tertiary">#94A3B8</color>
+    <color name="text_on_primary">#FFFFFF</color>
+
+    <!-- Status Colors -->
+    <!-- Pending (Amber/Yellow) -->
+    <color name="status_pending_bg">#FEF3C7</color>
+    <color name="status_pending_text">#B45309</color>
+    <color name="status_pending_stroke">#FCD34D</color>
+    
+    <!-- In Progress (Blue) -->
+    <color name="status_inprogress_bg">#DBEAFE</color>
+    <color name="status_inprogress_text">#1D4ED8</color>
+    <color name="status_inprogress_stroke">#93C5FD</color>
+
+    <!-- Completed (Green) -->
+    <color name="status_completed_bg">#DCFCE7</color>
+    <color name="status_completed_text">#15803D</color>
+    <color name="status_completed_stroke">#86EFAC</color>
+
+    <!-- Priority Colors -->
+    <color name="priority_high_bg">#FEE2E2</color>
+    <color name="priority_high_text">#B91C1C</color>
+    <color name="priority_medium_bg">#FFEDD5</color>
+    <color name="priority_medium_text">#C2410C</color>
+    <color name="priority_low_bg">#F1F5F9</color>
+    <color name="priority_low_text">#475569</color>
+
+    <!-- Dashboard Stat Cards Gradient/Tint -->
+    <color name="stat_total_bg">#EEF2FF</color>
+    <color name="stat_total_text">#4338CA</color>
+    <color name="stat_pending_bg">#FFFBEB</color>
+    <color name="stat_pending_text">#D97706</color>
+    <color name="stat_inprogress_bg">#EFF6FF</color>
+    <color name="stat_inprogress_text">#2563EB</color>
+    <color name="stat_completed_bg">#F0FDF4</color>
+    <color name="stat_completed_text">#16A34A</color>
+
+    <!-- Danger/Logout -->
+    <color name="danger">#EF4444</color>
+    <color name="danger_bg">#FEF2F2</color>
+</resources>
