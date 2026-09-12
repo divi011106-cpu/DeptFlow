@@ -20,6 +20,21 @@
             </intent-filter>
         </activity>
 
+        <!-- Auth: Register screen (Member 1) -->
+        <activity
+            android:name=".auth.RegisterActivity"
+            android:exported="false"
+            android:label="Create Account"
+            android:parentActivityName=".auth.LoginActivity" />
+
+        <!-- Auth: Forgot Password screen (Member 1) -->
+        <activity
+            android:name=".auth.ForgotPasswordActivity"
+            android:exported="false"
+            android:label="Reset Password"
+            android:parentActivityName=".auth.LoginActivity" />
+
+
         <!-- Faculty Module Activities -->
         <activity
             android:name=".feature.faculty.FacultyDashboardActivity"

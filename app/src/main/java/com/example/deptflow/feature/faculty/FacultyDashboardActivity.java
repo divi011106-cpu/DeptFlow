@@ -123,16 +123,22 @@ public class FacultyDashboardActivity extends AppCompatActivity {
                 .setTitle(R.string.action_logout)
                 .setMessage(R.string.logout_confirmation)
                 .setPositiveButton(R.string.yes, (dialog, which) -> {
+                    // 1. Sign out from Firebase — without this, LoginActivity sees
+                    //    getCurrentUser() != null and immediately re-routes back here.
+                    com.example.deptflow.auth.AuthManager.getInstance(FacultyDashboardActivity.this).logout();
+
+                    // 2. Clear SessionManager's SharedPreferences flag for consistency.
                     sessionManager.logout();
-                    Toast.makeText(FacultyDashboardActivity.this, "Logged out successfully", Toast.LENGTH_SHORT).show();
-                    try {
-                        Class<?> loginClass = Class.forName("com.example.deptflow.auth.LoginActivity");
-                        Intent intent = new Intent(FacultyDashboardActivity.this, loginClass);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                        startActivity(intent);
-                    } catch (ClassNotFoundException e) {
-                        finish();
-                    }
+
+                    // 3. Navigate to LoginActivity and clear the entire back stack so the
+                    //    user cannot return to the dashboard with the Back button.
+                    Intent intent = new Intent(FacultyDashboardActivity.this,
+                            com.example.deptflow.auth.LoginActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+
+                    // 4. Destroy this activity explicitly.
+                    finish();
                 })
                 .setNegativeButton(R.string.no, null)
                 .show();
