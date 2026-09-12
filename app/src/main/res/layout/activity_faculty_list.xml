@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Faculty Members"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="10dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Select a faculty member to communicate"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginBottom="30dp" />
+
+        <Button
+            android:id="@+id/btnFaculty1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Priya - Information Technology"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/btnFaculty2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Kumar - Computer Science"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/btnFaculty3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Anitha - Artificial Intelligence" />
+
+    </LinearLayout>
+
+</ScrollView>
