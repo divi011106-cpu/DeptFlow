@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Notifications"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="25dp" />
+
+        <TextView
+            android:id="@+id/tvNotification1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="New Task Assigned\nResult Analysis task has been assigned to you."
+            android:textSize="17sp"
+            android:padding="18dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:id="@+id/tvNotification2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="New Message\nPriya sent you a message."
+            android:textSize="17sp"
+            android:padding="18dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:id="@+id/tvNotification3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Deadline Reminder\nAttendance Report is due tomorrow."
+            android:textSize="17sp"
+            android:padding="18dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:id="@+id/tvNotification4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Task Status Updated\nResult Analysis has been marked as completed."
+            android:textSize="17sp"
+            android:padding="18dp" />
+
+    </LinearLayout>
+
+</ScrollView>
