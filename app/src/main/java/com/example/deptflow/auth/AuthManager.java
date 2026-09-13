@@ -53,9 +53,16 @@ public class AuthManager {
     public static final String ROLE_FACULTY = "FACULTY";
     public static final String ROLE_HOD = "HOD";
 
-    // SHA-256 hash for HOD admin key
+    /*
+     * SHA-256 hash for the fixed HOD admin key.
+     *
+     * Actual HOD admin key:
+     * DeptFlow@HOD2026
+     *
+     * Only the SHA-256 hash is stored in the code.
+     */
     private static final String HOD_ADMIN_KEY_HASH =
-            "8f90bf28db7e2a1e543a6d80b3cec9e2f28a620c3e6e5e56c91d4c22a1d1c3f7";
+            "683945d4a311f782bbb312a38d94d547c18cf20c6d94856383090c6fe0e76348";
 
     // Firebase instances
     private final FirebaseAuth firebaseAuth;
