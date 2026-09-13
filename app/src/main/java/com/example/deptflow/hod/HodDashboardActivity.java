@@ -1,44 +1,61 @@
 package com.example.deptflow.hod;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
-import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
+import com.example.deptflow.auth.LoginActivity;
 
-/**
- * Placeholder for Member 2 (HOD Module).
- */
 public class HodDashboardActivity extends AppCompatActivity {
+
+    Button btnAssignTask, btnViewTasks, btnLogout;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
-        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
-        layout.setGravity(android.view.Gravity.CENTER);
-        layout.setPadding(48, 48, 48, 48);
+        setContentView(R.layout.activity_hod_dashboard);
 
-        TextView title = new TextView(this);
-        title.setText(R.string.hod_module_title);
-        title.setTextSize(22);
-        title.setTextAlignment(TextView.TEXT_ALIGNMENT_CENTER);
+        btnAssignTask = findViewById(R.id.btnAssignTask);
+        btnViewTasks = findViewById(R.id.btnViewTasks);
+        btnLogout = findViewById(R.id.btnLogout);
 
-        TextView desc = new TextView(this);
-        desc.setText("This module is developed by Member 2 (HOD Module).");
-        desc.setTextAlignment(TextView.TEXT_ALIGNMENT_CENTER);
-        desc.setPadding(0, 16, 0, 32);
+        // Assign Task
+        btnAssignTask.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    HodDashboardActivity.this,
+                    AssignTaskActivity.class);
+            startActivity(intent);
+        });
 
-        Button back = new Button(this);
-        back.setText(R.string.back);
-        back.setOnClickListener(v -> finish());
+        // View Tasks
+        btnViewTasks.setOnClickListener(v -> {
+            Intent intent = new Intent(
+                    HodDashboardActivity.this,
+                    ViewTasksActivity.class);
+            startActivity(intent);
+        });
 
-        layout.addView(title);
-        layout.addView(desc);
-        layout.addView(back);
+        // Logout
+        btnLogout.setOnClickListener(v -> {
 
-        setContentView(layout);
+            // Clear login session
+            com.example.deptflow.auth.AuthManager
+                    .getInstance(HodDashboardActivity.this)
+                    .logout();
+
+            Intent intent = new Intent(
+                    HodDashboardActivity.this,
+                    LoginActivity.class);
+
+            intent.setFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                            Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+            startActivity(intent);
+            finish();
+        });
     }
 }

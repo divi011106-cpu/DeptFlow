@@ -34,7 +34,6 @@
             android:label="Reset Password"
             android:parentActivityName=".auth.LoginActivity" />
 
-
         <!-- Faculty Module Activities -->
         <activity
             android:name=".feature.faculty.FacultyDashboardActivity"
@@ -87,6 +86,18 @@
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".communication.TaskDiscussionChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".hod.AssignTaskActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".hod.ViewTasksActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".hod.FacultyListActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
     </application>
