@@ -49,8 +49,8 @@ public class FacultyDashboardActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh statistics when returning from MyTasks or TaskDetails
-        updateStatistics();
+        // Refresh user data and statistics when returning from MyTasks or TaskDetails
+        setupUserData();
     }
 
     private void initViews() {
@@ -75,16 +75,23 @@ public class FacultyDashboardActivity extends AppCompatActivity {
     }
 
     private void updateStatistics() {
-        String userId = (currentUser != null) ? currentUser.getUserId() : "FAC-102";
-        int total = taskRepository.getTotalTaskCount(userId);
-        int pending = taskRepository.getPendingTaskCount(userId);
-        int inProgress = taskRepository.getInProgressTaskCount(userId);
-        int completed = taskRepository.getCompletedTaskCount(userId);
+        currentUser = sessionManager.getCurrentUser();
+        int total = taskRepository.getTotalTaskCount(currentUser);
+        int pending = taskRepository.getPendingTaskCount(currentUser);
+        int inProgress = taskRepository.getInProgressTaskCount(currentUser);
+        int completed = taskRepository.getCompletedTaskCount(currentUser);
 
         tvCountTotal.setText(String.valueOf(total));
         tvCountPending.setText(String.valueOf(pending));
         tvCountInProgress.setText(String.valueOf(inProgress));
         tvCountCompleted.setText(String.valueOf(completed));
+
+        android.util.Log.d("DEPTFLOW_SYNC_DEBUG", "Faculty TaskData class = " + com.example.deptflow.hod.TaskData.class.getName());
+        android.util.Log.d("DEPTFLOW_SYNC_DEBUG", "Faculty TaskData tasks size = " + com.example.deptflow.hod.TaskData.tasks.size());
+        android.util.Log.d("DEPTFLOW_SYNC_DEBUG", "Faculty task = " + (com.example.deptflow.hod.TaskData.tasks.isEmpty() ? "none" : com.example.deptflow.hod.TaskData.tasks.get(0)));
+        android.util.Log.d("DEPTFLOW_SYNC_DEBUG", "Faculty TaskData list identity = " + System.identityHashCode(com.example.deptflow.hod.TaskData.tasks));
+        android.util.Log.d("DEPTFLOW_SYNC_DEBUG", "Current faculty = " + (currentUser != null ? currentUser.getName() : "null"));
+        android.util.Log.d("DEPTFLOW_SYNC_DEBUG", "Matched task count = " + total);
     }
 
     private void setupClickListeners() {

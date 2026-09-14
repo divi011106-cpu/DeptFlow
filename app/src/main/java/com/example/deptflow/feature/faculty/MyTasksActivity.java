@@ -63,7 +63,8 @@ public class MyTasksActivity extends AppCompatActivity implements TaskAdapter.On
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh tasks when returning from TaskDetailsActivity with updated status
+        // Refresh tasks when returning from TaskDetailsActivity with updated status or when new HOD tasks arrive
+        currentUser = sessionManager.getCurrentUser();
         loadTasks();
     }
 
@@ -131,8 +132,8 @@ public class MyTasksActivity extends AppCompatActivity implements TaskAdapter.On
     }
 
     private void loadTasks() {
-        String userId = (currentUser != null) ? currentUser.getUserId() : "FAC-102";
-        List<Task> allFacultyTasks = taskRepository.getTasksForFaculty(userId);
+        currentUser = sessionManager.getCurrentUser();
+        List<Task> allFacultyTasks = taskRepository.getTasksForFaculty(currentUser);
         List<Task> filteredTasks = new ArrayList<>();
 
         for (Task task : allFacultyTasks) {
