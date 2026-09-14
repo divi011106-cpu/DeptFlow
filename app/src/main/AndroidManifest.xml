@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
     <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -9,25 +11,31 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DeptFlow">
 
-        <!-- Login / Auth Activity (Launcher) -->
+        <!-- Splash Screen - App starts here -->
         <activity
-            android:name=".auth.LoginActivity"
+            android:name=".SplashActivity"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
         </activity>
 
-        <!-- Auth: Register screen (Member 1) -->
+        <!-- Login / Auth Activity -->
+        <activity
+            android:name=".auth.LoginActivity"
+            android:exported="false" />
+
+        <!-- Auth: Register screen -->
         <activity
             android:name=".auth.RegisterActivity"
             android:exported="false"
             android:label="Create Account"
             android:parentActivityName=".auth.LoginActivity" />
 
-        <!-- Auth: Forgot Password screen (Member 1) -->
+        <!-- Auth: Forgot Password screen -->
         <activity
             android:name=".auth.ForgotPasswordActivity"
             android:exported="false"
@@ -39,67 +47,82 @@
             android:name=".feature.faculty.FacultyDashboardActivity"
             android:exported="true"
             android:label="@string/app_name" />
+
         <activity
             android:name=".feature.faculty.MyTasksActivity"
             android:exported="false"
             android:label="@string/title_my_tasks"
             android:parentActivityName=".feature.faculty.FacultyDashboardActivity" />
+
         <activity
             android:name=".feature.faculty.TaskDetailsActivity"
             android:exported="false"
             android:label="@string/title_task_details"
             android:parentActivityName=".feature.faculty.MyTasksActivity" />
+
         <activity
             android:name=".feature.faculty.FacultyProfileActivity"
             android:exported="false"
             android:label="@string/title_faculty_profile"
             android:parentActivityName=".feature.faculty.FacultyDashboardActivity" />
 
-        <!-- Placeholder Modules (Member 2 & Member 4) -->
+        <!-- HOD Module -->
         <activity
             android:name=".hod.HodDashboardActivity"
             android:exported="false"
             android:label="@string/hod_module_title" />
-        <activity
-            android:name=".communication.CommunicationActivity"
-            android:exported="false"
-            android:label="@string/comm_module_title" />
-        <activity
-            android:name=".communication.FacultyListActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".communication.ChatActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".communication.TaskDiscussionActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".communication.NotificationsActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".communication.RemindersActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".communication.TaskDiscussionChatActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".hod.AssignTaskActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".hod.ViewTasksActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".hod.FacultyListActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Communication Module -->
+        <activity
+            android:name=".communication.CommunicationActivity"
+            android:exported="false"
+            android:label="@string/comm_module_title" />
+
+        <activity
+            android:name=".communication.FacultyListActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".communication.ChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".communication.TaskDiscussionActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".communication.NotificationsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".communication.RemindersActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".communication.TaskDiscussionChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>
