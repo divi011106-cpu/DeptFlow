@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#F5F7FB">
+    android:background="#F5F7FB"
+    android:padding="16dp">
 
     <TextView
         android:layout_width="match_parent"
@@ -16,35 +17,24 @@
         android:textColor="#1A237E"
         android:gravity="center"
         android:padding="12dp"
-        android:layout_marginBottom="10dp" />
+        android:layout_marginBottom="12dp" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Task assignments and reminders"
-        android:textSize="15sp"
-        android:textColor="#666666"
-        android:gravity="center"
-        android:layout_marginBottom="16dp" />
-
-    <TextView
-        android:id="@+id/tvNoNotifications"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="No notifications"
-        android:textSize="17sp"
-        android:textColor="#777777"
-        android:gravity="center"
-        android:padding="30dp"
-        android:visibility="gone" />
-
-    <ListView
-        android:id="@+id/listNotifications"
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:background="#FFFFFF"
-        android:divider="#DDDDDD"
-        android:dividerHeight="1dp" />
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tvNotifications"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Loading notifications..."
+            android:textSize="17sp"
+            android:textColor="#333333"
+            android:lineSpacingExtra="5dp" />
+
+    </ScrollView>
 
 </LinearLayout>

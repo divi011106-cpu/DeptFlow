@@ -1,24 +1,24 @@
 package com.example.deptflow.communication;
 
-import android.app.AlertDialog;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
-
-import java.util.ArrayList;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 
 public class NotificationsActivity extends AppCompatActivity {
 
-    private ListView listNotifications;
-    private TextView tvNoNotifications;
+    private TextView tvNotifications;
 
-    private final ArrayList<String> notifications =
-            new ArrayList<>();
+    private FirebaseFirestore db;
+    private ListenerRegistration notificationListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,71 +26,103 @@ public class NotificationsActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_notifications);
 
-        listNotifications =
-                findViewById(R.id.listNotifications);
+        tvNotifications = findViewById(R.id.tvNotifications);
 
-        tvNoNotifications =
-                findViewById(R.id.tvNoNotifications);
+        db = FirebaseFirestore.getInstance();
 
-        loadNotifications();
+        listenForTaskNotifications();
     }
 
-    private void loadNotifications() {
+    private void listenForTaskNotifications() {
 
-        notifications.clear();
+        notificationListener = db.collection("task_assignments")
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .addSnapshotListener((snapshots, error) -> {
 
-        // Temporary notification data.
-        // Later this will come from Firestore/HOD assignment.
-        notifications.add(
-                "New Task Assigned\n" +
-                        "Result Analysis\n" +
-                        "Please complete the task before the deadline."
-        );
+                    if (error != null) {
 
-        notifications.add(
-                "Reminder\n" +
-                        "Attendance Report is due soon."
-        );
+                        Toast.makeText(
+                                NotificationsActivity.this,
+                                "Unable to load notifications",
+                                Toast.LENGTH_SHORT
+                        ).show();
 
-        if (notifications.isEmpty()) {
+                        return;
+                    }
 
-            listNotifications.setVisibility(ListView.GONE);
-            tvNoNotifications.setVisibility(TextView.VISIBLE);
+                    if (snapshots == null || snapshots.isEmpty()) {
 
-            return;
-        }
+                        tvNotifications.setText(
+                                "No new notifications"
+                        );
 
-        listNotifications.setVisibility(ListView.VISIBLE);
-        tvNoNotifications.setVisibility(TextView.GONE);
+                        return;
+                    }
 
-        ArrayAdapter<String> adapter =
-                new ArrayAdapter<>(
-                        this,
-                        android.R.layout.simple_list_item_1,
+                    StringBuilder notifications =
+                            new StringBuilder();
+
+                    for (DocumentSnapshot document :
+                            snapshots.getDocuments()) {
+
+                        String title =
+                                document.getString("title");
+
+                        String description =
+                                document.getString("description");
+
+                        String deadline =
+                                document.getString("deadline");
+
+                        String assignedBy =
+                                document.getString("assignedBy");
+
+                        if (title == null) {
+                            title = "New Task";
+                        }
+
+                        if (description == null) {
+                            description = "";
+                        }
+
+                        if (deadline == null) {
+                            deadline = "Not specified";
+                        }
+
+                        if (assignedBy == null) {
+                            assignedBy = "HOD";
+                        }
+
                         notifications
-                );
+                                .append("📢 New Task Assigned\n\n")
+                                .append("Title: ")
+                                .append(title)
+                                .append("\n\n")
+                                .append("Description: ")
+                                .append(description)
+                                .append("\n\n")
+                                .append("Deadline: ")
+                                .append(deadline)
+                                .append("\n\n")
+                                .append("Assigned by: ")
+                                .append(assignedBy)
+                                .append("\n")
+                                .append("--------------------------------\n\n");
+                    }
 
-        listNotifications.setAdapter(adapter);
-
-        listNotifications.setOnItemClickListener(
-                (parent, view, position, id) -> {
-
-                    showNotificationPopup(
-                            notifications.get(position)
+                    tvNotifications.setText(
+                            notifications.toString()
                     );
-                }
-        );
+                });
     }
 
-    private void showNotificationPopup(String notification) {
+    @Override
+    protected void onDestroy() {
 
-        new AlertDialog.Builder(this)
-                .setTitle("Notification")
-                .setMessage(notification)
-                .setPositiveButton(
-                        "OK",
-                        null
-                )
-                .show();
+        super.onDestroy();
+
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
     }
 }
