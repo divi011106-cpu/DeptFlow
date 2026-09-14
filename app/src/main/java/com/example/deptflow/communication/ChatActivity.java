@@ -13,18 +13,43 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
+import com.example.deptflow.auth.AuthManager;
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 public class ChatActivity extends AppCompatActivity {
 
-    TextView tvChatTitle;
-    TextView tvStatus;
+    private TextView tvChatTitle;
+    private TextView tvStatus;
 
-    EditText etMessage;
-    Button btnSend;
-    Button btnBack;
+    private EditText etMessage;
+    private Button btnSend;
+    private Button btnBack;
 
-    LinearLayout messageContainer;
-    ScrollView scrollMessages;
+    private LinearLayout messageContainer;
+    private ScrollView scrollMessages;
+
+    private FirebaseFirestore db;
+    private FirebaseAuth firebaseAuth;
+    private ListenerRegistration messageListener;
+
+    private String facultyName;
+
+    private String currentUserId = "";
+    private String currentUserName = "";
+    private String currentUserRole = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,7 +57,7 @@ public class ChatActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_chat);
 
-        // Connect XML components
+        // Connect XML views
         tvChatTitle = findViewById(R.id.tvChatTitle);
         tvStatus = findViewById(R.id.tvStatus);
 
@@ -43,30 +68,37 @@ public class ChatActivity extends AppCompatActivity {
         messageContainer = findViewById(R.id.messageContainer);
         scrollMessages = findViewById(R.id.scrollMessages);
 
+        // Firebase
+        db = FirebaseFirestore.getInstance();
+        firebaseAuth = FirebaseAuth.getInstance();
 
-        // Get faculty name from FacultyListActivity
-        String facultyName =
-                getIntent().getStringExtra("facultyName");
+        // Get selected faculty
+        facultyName = getIntent().getStringExtra("facultyName");
 
-        if (facultyName != null) {
-
-            tvChatTitle.setText(facultyName);
-            tvStatus.setText("Faculty");
-
+        if (facultyName == null || facultyName.trim().isEmpty()) {
+            facultyName = "Faculty";
         }
 
+        tvChatTitle.setText(facultyName);
+        tvStatus.setText("Faculty");
+
+        // Get logged-in user
+        loadCurrentUser();
+
+        // Start listening for messages
+        listenForMessages();
 
         // Back button
-        btnBack.setOnClickListener(v -> {
-            getOnBackPressedDispatcher().onBackPressed();
-        });
-
+        btnBack.setOnClickListener(v ->
+                getOnBackPressedDispatcher().onBackPressed()
+        );
 
         // Send button
         btnSend.setOnClickListener(v -> {
 
-            String message =
-                    etMessage.getText().toString().trim();
+            String message = etMessage.getText()
+                    .toString()
+                    .trim();
 
             if (message.isEmpty()) {
 
@@ -76,78 +108,238 @@ public class ChatActivity extends AppCompatActivity {
                         Toast.LENGTH_SHORT
                 ).show();
 
-            } else {
-
-                addMessage(message);
-
-                etMessage.setText("");
-
-                // Scroll to latest message
-                scrollMessages.post(() ->
-                        scrollMessages.fullScroll(
-                                ScrollView.FOCUS_DOWN
-                        )
-                );
+                return;
             }
 
+            sendMessage(message);
         });
-
     }
 
+    /**
+     * Get currently logged-in faculty/user information.
+     */
+    private void loadCurrentUser() {
 
-    // Add a message bubble
-    private void addMessage(String message) {
+        FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
+
+        if (firebaseUser != null) {
+            currentUserId = firebaseUser.getUid();
+
+            if (firebaseUser.getDisplayName() != null &&
+                    !firebaseUser.getDisplayName().isEmpty()) {
+
+                currentUserName = firebaseUser.getDisplayName();
+
+            } else {
+                currentUserName = "You";
+            }
+        } else {
+            currentUserName = "You";
+        }
+
+        currentUserRole = "FACULTY";
+    }
+
+    /**
+     * Send message to Firestore.
+     */
+    private void sendMessage(String message) {
+
+        Map<String, Object> messageData =
+                new HashMap<>();
+
+        // New sender information
+        messageData.put("senderId", currentUserId);
+        messageData.put("senderName", currentUserName);
+        messageData.put("senderRole", currentUserRole);
+
+        // Keep old field for compatibility
+        messageData.put("sender", currentUserName);
+
+        messageData.put("message", message);
+        messageData.put(
+                "timestamp",
+                FieldValue.serverTimestamp()
+        );
+
+        db.collection("chats")
+                .document(facultyName)
+                .collection("messages")
+                .add(messageData)
+                .addOnSuccessListener(documentReference -> {
+
+                    // Clear input
+                    etMessage.setText("");
+
+                })
+                .addOnFailureListener(e -> {
+
+                    Toast.makeText(
+                            ChatActivity.this,
+                            "Message could not be sent.",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                });
+    }
+
+    /**
+     * Listen for messages in real time.
+     */
+    private void listenForMessages() {
+
+        messageListener = db.collection("chats")
+                .document(facultyName)
+                .collection("messages")
+                .orderBy(
+                        "timestamp",
+                        Query.Direction.ASCENDING
+                )
+                .addSnapshotListener((snapshots, error) -> {
+
+                    if (error != null) {
+
+                        // Firestore permission issue will
+                        // be fixed by your friend later.
+                        return;
+                    }
+
+                    if (snapshots == null) {
+                        return;
+                    }
+
+                    messageContainer.removeAllViews();
+
+                    for (DocumentSnapshot document :
+                            snapshots.getDocuments()) {
+
+                        String senderId =
+                                document.getString("senderId");
+
+                        String senderName =
+                                document.getString("senderName");
+
+                        String sender =
+                                document.getString("sender");
+
+                        String message =
+                                document.getString("message");
+
+                        // New format
+                        if (senderName == null ||
+                                senderName.trim().isEmpty()) {
+
+                            senderName = sender;
+                        }
+
+                        if (senderName == null ||
+                                senderName.trim().isEmpty()) {
+
+                            senderName = "Faculty";
+                        }
+
+                        if (message != null) {
+
+                            addMessage(
+                                    senderId,
+                                    senderName,
+                                    message
+                            );
+                        }
+                    }
+
+                    scrollMessages.post(() ->
+                            scrollMessages.fullScroll(
+                                    ScrollView.FOCUS_DOWN
+                            )
+                    );
+                });
+    }
+
+    /**
+     * Add a message bubble to the chat.
+     */
+    private void addMessage(
+            String senderId,
+            String senderName,
+            String message) {
 
         TextView messageView =
                 new TextView(this);
 
-        messageView.setText("You: " + message);
+        boolean isMyMessage =
+                currentUserId != null &&
+                        !currentUserId.isEmpty() &&
+                        currentUserId.equals(senderId);
+
+        // Message text
+        String displayText;
+
+        if (isMyMessage) {
+
+            displayText = message;
+
+        } else {
+
+            displayText =
+                    senderName + "\n" + message;
+        }
+
+        messageView.setText(displayText);
 
         messageView.setTextSize(16);
-
         messageView.setTextColor(Color.BLACK);
 
-        messageView.setPadding(
-                20,
-                12,
-                20,
-                12
+        messageView.setMaxWidth(
+                (int) (getResources()
+                        .getDisplayMetrics()
+                        .widthPixels * 0.75)
         );
 
-
-        // Message width and height
+        // Layout parameters
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
+        if (isMyMessage) {
 
-        // Put our message on the right
-        params.gravity = Gravity.END;
+            // My message → RIGHT
+            params.gravity = Gravity.END;
 
+            messageView.setBackgroundResource(
+                    R.drawable.bg_message_sent
+            );
 
-        // Space around message
+        } else {
+
+            // Other faculty → LEFT
+            params.gravity = Gravity.START;
+
+            messageView.setBackgroundResource(
+                    R.drawable.bg_message_received
+            );
+        }
+
         params.setMargins(
-                50,
-                6,
-                6,
-                6
+                8,
+                5,
+                8,
+                5
         );
-
 
         messageView.setLayoutParams(params);
 
-
-        // Simple background
-        messageView.setBackgroundResource(
-                android.R.drawable.dialog_holo_light_frame
-        );
-
-
-        // Add message to screen
         messageContainer.addView(messageView);
-
     }
 
+    @Override
+    protected void onDestroy() {
+
+        super.onDestroy();
+
+        if (messageListener != null) {
+            messageListener.remove();
+        }
+    }
 }
