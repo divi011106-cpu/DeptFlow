@@ -2,7 +2,8 @@ package com.example.deptflow.communication;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -10,55 +11,66 @@ import com.example.deptflow.R;
 
 public class FacultyListActivity extends AppCompatActivity {
 
+    private ListView listFaculty;
+
+    // Department faculty members
+    private final String[] facultyNames = {
+
+            "Dr. R. Vijayalakshmi",
+            "Dr. R. Raja Sudharsan",
+            "Dr. K. M. Alaaudeen",
+            "Dr. T. Sarnya",
+            "Mrs. M. Prabha",
+            "Mrs. P. Saraswathi",
+            "Mr. S. Jegadeesan",
+            "Mrs. A. Meena",
+            "Dr. T. Venkatesh Kanna",
+            "Mrs. M. Ishvarya",
+            "Mrs. R. Nancy Deborah",
+            "Mrs. C. Manjula Devi",
+            "Mrs. A. Vinora",
+            "Mr. A. Srinivasan",
+            "Mr. P. KalyanaKumar",
+            "Ms. G. Sivakarthi",
+            "Mrs. M. Soundarya",
+            "Mrs. J. John Shiny",
+            "Mr. R. Umesh",
+            "Mrs. A. Periya Nayaki",
+            "Mrs. A. Elavarasi",
+            "Dr. S. Esakki Muthu",
+            "Mr. K. Loganathan"
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_faculty_list);
 
+        listFaculty = findViewById(R.id.listFaculty);
 
-        Button btnFaculty1 =
-                findViewById(R.id.btnFaculty1);
-
-        Button btnFaculty2 =
-                findViewById(R.id.btnFaculty2);
-
-        Button btnFaculty3 =
-                findViewById(R.id.btnFaculty3);
-
-
-        btnFaculty1.setOnClickListener(v ->
-                openChat("Priya")
+        // Create list adapter
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_1,
+                facultyNames
         );
 
+        listFaculty.setAdapter(adapter);
 
-        btnFaculty2.setOnClickListener(v ->
-                openChat("Kumar")
-        );
+        // Open chat when faculty member is clicked
+        listFaculty.setOnItemClickListener((parent, view, position, id) -> {
 
+            String selectedFaculty = facultyNames[position];
 
-        btnFaculty3.setOnClickListener(v ->
-                openChat("Anitha")
-        );
+            Intent intent = new Intent(
+                    FacultyListActivity.this,
+                    ChatActivity.class
+            );
 
+            intent.putExtra("facultyName", selectedFaculty);
+
+            startActivity(intent);
+        });
     }
-
-
-    private void openChat(String facultyName) {
-
-        Intent intent =
-                new Intent(
-                        FacultyListActivity.this,
-                        ChatActivity.class
-                );
-
-        intent.putExtra(
-                "facultyName",
-                facultyName
-        );
-
-        startActivity(intent);
-
-    }
-
 }
