@@ -138,4 +138,23 @@
     <string name="reset_email_sent_msg">A reset link has been sent to your email. Check your inbox and follow the link to set a new password.</string>
     <string name="reset_temp_password_prefix">Temporary password: </string>
     <string name="error_email_not_registered">No account found with this email address</string>
+
+    <!-- HOD Module Strings -->
+    <string name="hod_name">Dr. R. Kavitha</string>
+    <string name="hod_designation">Head of Department</string>
+    <string name="welcome_hod">Welcome, HOD</string>
+    <string name="stat_total_tasks">Total Tasks</string>
+    <string name="action_assign_task">Assign Task</string>
+    <string name="action_assign_task_desc">Delegate departmental work &amp; set deadlines</string>
+    <string name="action_view_tasks">View Tasks</string>
+    <string name="action_view_tasks_desc">Track, filter, and monitor progress</string>
+    <string name="action_faculty_status">Faculty Status</string>
+    <string name="action_faculty_status_desc">View faculty workload and active duties</string>
+    <string name="action_reports">Reports &amp; Analytics</string>
+    <string name="action_reports_desc">Performance metrics &amp; task completion</string>
+    <string name="action_notifications">Notifications</string>
+    <string name="action_notifications_desc">Reminders, alerts, and circulars</string>
+    <string name="action_logout_desc">Secure sign out from HOD portal</string>
+    <string name="btn_select_faculty">Select Faculty Members</string>
+    <string name="select_all_faculties">Select All Faculties</string>
 </resources>

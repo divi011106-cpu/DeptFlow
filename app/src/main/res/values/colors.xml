@@ -58,4 +58,19 @@
     <!-- Danger/Logout -->
     <color name="danger">#EF4444</color>
     <color name="danger_bg">#FEF2F2</color>
+
+    <!-- HOD Module Additions -->
+    <color name="gold_accent">#F59E0B</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_white_translucent">#D0E1FD</color>
+    <color name="primary_container">#DBEAFE</color>
+    <color name="on_primary_container">#1E3A8A</color>
+    <color name="priority_high">#DC2626</color>
+    <color name="priority_medium">#D97706</color>
+    <color name="priority_low">#059669</color>
+    <color name="status_assigned">#2563EB</color>
+    <color name="status_in_progress">#7C3AED</color>
+    <color name="status_completed">#10B981</color>
+    <color name="status_assigned_bg">#EFF6FF</color>
+    <color name="status_in_progress_bg">#F5F3FF</color>
 </resources>

@@ -1,8 +1,10 @@
 package com.example.deptflow.hod;
 
 import android.app.DatePickerDialog;
-import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -12,13 +14,22 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
 
 public class AssignTaskActivity extends AppCompatActivity {
 
-    private String[] facultyNames = {
+    private final String[] facultyNames = {
             "Dr. R. Vijayalakshmi",
             "Dr. R. Raja Sudharsan",
             "Dr. K. M. Alaaudeen",
@@ -44,131 +55,254 @@ public class AssignTaskActivity extends AppCompatActivity {
             "Mr. K. Loganathan"
     };
 
-    private boolean[] selectedFaculty =
-            new boolean[facultyNames.length];
+    private boolean[] selectedFaculty;
+    private final ArrayList<String> selectedList = new ArrayList<>();
 
-    private ArrayList<String> selectedList =
-            new ArrayList<>();
+    private EditText etTaskId, etTitle, etDescription, etDeadline;
+    private TextView tvSelectedCount, tvSelectedFaculty;
+    private AutoCompleteTextView actvPriority, actvStatus;
+    private Button btnSelectFaculty, btnAssign, btnClear;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_assign_task);
 
-        EditText etTitle = findViewById(R.id.etTitle);
-        EditText etDescription = findViewById(R.id.etDescription);
-        EditText etDeadline = findViewById(R.id.etDeadline);
+        selectedFaculty = new boolean[facultyNames.length];
 
-        Button btnSelectFaculty =
-                findViewById(R.id.btnSelectFaculty);
+        initViews();
+        setupDropdowns();
+        setupDatePicker();
+        setupFacultySelectionDialog();
+        setupButtons();
+        generateDefaultTaskId();
+    }
 
-        TextView tvSelectedFaculty =
-                findViewById(R.id.tvSelectedFaculty);
+    private void initViews() {
+        etTaskId = findViewById(R.id.etTaskId);
+        etTitle = findViewById(R.id.etTitle);
+        etDescription = findViewById(R.id.etDescription);
+        etDeadline = findViewById(R.id.etDeadline);
+        tvSelectedCount = findViewById(R.id.tvSelectedCount);
+        tvSelectedFaculty = findViewById(R.id.tvSelectedFaculty);
+        actvPriority = findViewById(R.id.actvPriority);
+        actvStatus = findViewById(R.id.actvStatus);
+        btnSelectFaculty = findViewById(R.id.btnSelectFaculty);
+        btnAssign = findViewById(R.id.btnAssign);
+        btnClear = findViewById(R.id.btnClear);
 
-        Button btnAssign =
-                findViewById(R.id.btnAssign);
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            toolbar.setNavigationOnClickListener(v -> finish());
+        }
+    }
 
-        // Date Picker
+    private void setupDropdowns() {
+        String[] priorities = {"High", "Medium", "Low"};
+        ArrayAdapter<String> priorityAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, priorities);
+        if (actvPriority != null) {
+            actvPriority.setAdapter(priorityAdapter);
+            actvPriority.setText("High", false);
+        }
+
+        String[] statuses = {"Assigned", "In Progress", "Completed"};
+        ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, statuses);
+        if (actvStatus != null) {
+            actvStatus.setAdapter(statusAdapter);
+            actvStatus.setText("Assigned", false);
+        }
+    }
+
+    private void setupDatePicker() {
         etDeadline.setOnClickListener(v -> {
-
             Calendar calendar = Calendar.getInstance();
+            int year = calendar.get(Calendar.YEAR);
+            int month = calendar.get(Calendar.MONTH);
+            int day = calendar.get(Calendar.DAY_OF_MONTH);
 
-            DatePickerDialog dialog =
-                    new DatePickerDialog(
-                            AssignTaskActivity.this,
-                            (view, year, month, dayOfMonth) ->
-                                    etDeadline.setText(
-                                            dayOfMonth + "/" +
-                                                    (month + 1) + "/" +
-                                                    year),
-                            calendar.get(Calendar.YEAR),
-                            calendar.get(Calendar.MONTH),
-                            calendar.get(Calendar.DAY_OF_MONTH));
-
+            DatePickerDialog dialog = new DatePickerDialog(
+                    AssignTaskActivity.this,
+                    (view, selectedYear, selectedMonth, selectedDay) -> {
+                        Calendar cal = Calendar.getInstance();
+                        cal.set(selectedYear, selectedMonth, selectedDay);
+                        SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yyyy", Locale.getDefault());
+                        etDeadline.setText(sdf.format(cal.getTime()));
+                    },
+                    year, month, day
+            );
+            dialog.getDatePicker().setMinDate(calendar.getTimeInMillis());
             dialog.show();
         });
+    }
 
-        // Faculty Selection Dialog
+    /**
+     * Multi-Select Faculty Dialog with the "Select All Faculties" feature.
+     */
+    private void setupFacultySelectionDialog() {
         btnSelectFaculty.setOnClickListener(v -> {
+            // Index 0: Select All Faculties, followed by all faculty names
+            String[] dialogItems = new String[facultyNames.length + 1];
+            dialogItems[0] = "☑ Select All Faculties";
+            System.arraycopy(facultyNames, 0, dialogItems, 1, facultyNames.length);
 
-            AlertDialog.Builder builder =
-                    new AlertDialog.Builder(
-                            AssignTaskActivity.this);
+            boolean allSelected = (selectedList.size() == facultyNames.length);
+            boolean[] dialogCheckedStates = new boolean[dialogItems.length];
+            dialogCheckedStates[0] = allSelected;
 
-            builder.setTitle("Select Faculty");
-
-            builder.setMultiChoiceItems(
-                    facultyNames,
-                    selectedFaculty,
-                    (dialog, which, isChecked) -> {
-
-                        if (isChecked) {
-                            selectedList.add(
-                                    facultyNames[which]);
-                        } else {
-                            selectedList.remove(
-                                    facultyNames[which]);
-                        }
-                    });
-
-            builder.setPositiveButton(
-                    "OK",
-                    (dialog, which) -> {
-
-                        StringBuilder names =
-                                new StringBuilder();
-
-                        for (String faculty :
-                                selectedList) {
-
-                            names.append(faculty)
-                                    .append("\n");
-                        }
-
-                        if (selectedList.isEmpty()) {
-                            tvSelectedFaculty.setText(
-                                    "No Faculty Selected");
-                        } else {
-                            tvSelectedFaculty.setText(
-                                    names.toString());
-                        }
-                    });
-
-            builder.setNegativeButton(
-                    "Cancel", null);
-
-            builder.show();
-        });
-
-        // Assign Task
-        btnAssign.setOnClickListener(v -> {
-
-            if (selectedList.isEmpty()) {
-
-                Toast.makeText(
-                        AssignTaskActivity.this,
-                        "Please select at least one faculty",
-                        Toast.LENGTH_SHORT
-                ).show();
-
-                return;
+            for (int i = 0; i < facultyNames.length; i++) {
+                dialogCheckedStates[i + 1] = selectedFaculty[i];
             }
 
-            String task =
-                    "Title: " + etTitle.getText().toString() +
-                            "\nDescription: " + etDescription.getText().toString() +
-                            "\nDeadline: " + etDeadline.getText().toString() +
-                            "\nFaculty: " + tvSelectedFaculty.getText().toString();
-
-            TaskData.tasks.add(task);
-
-            Toast.makeText(
-                    AssignTaskActivity.this,
-                    "Task Assigned Successfully",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            finish();
+            new MaterialAlertDialogBuilder(AssignTaskActivity.this)
+                    .setTitle("Select Department Faculty")
+                    .setMultiChoiceItems(dialogItems, dialogCheckedStates, (dialog, which, isChecked) -> {
+                        if (which == 0) {
+                            // "Select All Faculties" toggled!
+                            for (int i = 1; i < dialogCheckedStates.length; i++) {
+                                dialogCheckedStates[i] = isChecked;
+                                ((AlertDialog) dialog).getListView().setItemChecked(i, isChecked);
+                            }
+                        } else {
+                            // Individual faculty member toggled
+                            dialogCheckedStates[which] = isChecked;
+                            if (!isChecked) {
+                                dialogCheckedStates[0] = false;
+                                ((AlertDialog) dialog).getListView().setItemChecked(0, false);
+                            }
+                        }
+                    })
+                    .setPositiveButton("Confirm Selection", (dialog, which) -> {
+                        selectedList.clear();
+                        for (int i = 0; i < facultyNames.length; i++) {
+                            selectedFaculty[i] = dialogCheckedStates[i + 1];
+                            if (selectedFaculty[i]) {
+                                selectedList.add(facultyNames[i]);
+                            }
+                        }
+                        updateFacultySummaryUI();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
         });
+    }
+
+    private void updateFacultySummaryUI() {
+        if (selectedList.isEmpty()) {
+            if (tvSelectedCount != null) tvSelectedCount.setText("Selected Faculties (0):");
+            tvSelectedFaculty.setText("No Faculty Selected");
+            tvSelectedFaculty.setTextColor(getColor(R.color.text_secondary));
+        } else if (selectedList.size() == facultyNames.length) {
+            if (tvSelectedCount != null) tvSelectedCount.setText("Selected Faculties (" + selectedList.size() + "):");
+            tvSelectedFaculty.setText("All Faculties Selected (" + selectedList.size() + " members - Entire Department)");
+            tvSelectedFaculty.setTextColor(getColor(R.color.primary));
+        } else {
+            if (tvSelectedCount != null) tvSelectedCount.setText("Selected Faculties (" + selectedList.size() + "):");
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < selectedList.size(); i++) {
+                sb.append(selectedList.get(i));
+                if (i < selectedList.size() - 1) sb.append(", ");
+            }
+            tvSelectedFaculty.setText(sb.toString());
+            tvSelectedFaculty.setTextColor(getColor(R.color.text_primary));
+        }
+    }
+
+    private void setupButtons() {
+        btnAssign.setOnClickListener(v -> assignTask());
+
+        if (btnClear != null) {
+            btnClear.setOnClickListener(v -> clearForm());
+        }
+    }
+
+    private void assignTask() {
+        String taskId = etTaskId != null ? etTaskId.getText().toString().trim() : "";
+        String title = etTitle.getText().toString().trim();
+        String description = etDescription.getText().toString().trim();
+        String deadline = etDeadline.getText().toString().trim();
+        String priority = actvPriority != null ? actvPriority.getText().toString().trim() : "High";
+        String status = actvStatus != null ? actvStatus.getText().toString().trim() : "Assigned";
+
+        if (TextUtils.isEmpty(taskId)) {
+            taskId = generateDefaultTaskId();
+        }
+
+        if (TextUtils.isEmpty(title)) {
+            etTitle.setError("Task title is required");
+            etTitle.requestFocus();
+            return;
+        }
+
+        if (TextUtils.isEmpty(description)) {
+            etDescription.setError("Task description is required");
+            etDescription.requestFocus();
+            return;
+        }
+
+        if (selectedList.isEmpty()) {
+            Toast.makeText(this, "Please select at least one faculty or choose 'Select All Faculties'", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (TextUtils.isEmpty(deadline)) {
+            Toast.makeText(this, "Please select a deadline using the calendar", Toast.LENGTH_SHORT).show();
+            etDeadline.performClick();
+            return;
+        }
+
+        try {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+            // Save single task with list of assigned faculty for scalable querying
+            Map<String, Object> taskMap = new HashMap<>();
+            taskMap.put("id", taskId);
+            taskMap.put("title", title);
+            taskMap.put("description", description);
+            taskMap.put("deadline", deadline);
+            taskMap.put("priority", priority);
+            taskMap.put("status", status);
+            taskMap.put("assignedFaculty", new ArrayList<>(selectedList));
+            taskMap.put("assignedFacultyCount", selectedList.size());
+            taskMap.put("timestamp", System.currentTimeMillis());
+
+            // Also keep legacy individual task documents for backward compatibility with Faculty App
+            for (String faculty : selectedList) {
+                Map<String, Object> individualTask = new HashMap<>(taskMap);
+                individualTask.put("faculty", faculty);
+                db.collection("tasks").add(individualTask);
+            }
+
+            // Also save root task
+            db.collection("tasks").document(taskId).set(taskMap);
+
+            Toast.makeText(this, "Task Assigned Successfully to " + selectedList.size() + " Faculty Member(s)!", Toast.LENGTH_LONG).show();
+            finish();
+
+        } catch (Exception e) {
+            Toast.makeText(this, "Task queued locally: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            finish();
+        }
+    }
+
+    private void clearForm() {
+        generateDefaultTaskId();
+        etTitle.setText("");
+        etDescription.setText("");
+        etDeadline.setText("");
+        if (actvPriority != null) actvPriority.setText("High", false);
+        if (actvStatus != null) actvStatus.setText("Assigned", false);
+        selectedList.clear();
+        Arrays.fill(selectedFaculty, false);
+        updateFacultySummaryUI();
+        Toast.makeText(this, "Form cleared", Toast.LENGTH_SHORT).show();
+    }
+
+    private String generateDefaultTaskId() {
+        int randomId = 1000 + new Random().nextInt(9000);
+        String id = "TSK-2026-" + randomId;
+        if (etTaskId != null) {
+            etTaskId.setText(id);
+        }
+        return id;
     }
 }
