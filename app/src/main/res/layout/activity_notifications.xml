@@ -1,59 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F5F7FB"
+    android:padding="16dp">
 
-    <LinearLayout
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:text="Notifications"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:textColor="#1A237E"
+        android:gravity="center"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFFFFF"
+        android:padding="16dp">
 
         <TextView
+            android:id="@+id/tvNotifications"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Notifications"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:layout_marginBottom="25dp" />
-
-        <TextView
-            android:id="@+id/tvNotification1"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="New Task Assigned\nResult Analysis task has been assigned to you."
+            android:text="Loading notifications..."
             android:textSize="17sp"
-            android:padding="18dp"
-            android:layout_marginBottom="12dp" />
+            android:textColor="#333333"
+            android:lineSpacingExtra="5dp" />
 
-        <TextView
-            android:id="@+id/tvNotification2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="New Message\nPriya sent you a message."
-            android:textSize="17sp"
-            android:padding="18dp"
-            android:layout_marginBottom="12dp" />
+    </ScrollView>
 
-        <TextView
-            android:id="@+id/tvNotification3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Deadline Reminder\nAttendance Report is due tomorrow."
-            android:textSize="17sp"
-            android:padding="18dp"
-            android:layout_marginBottom="12dp" />
-
-        <TextView
-            android:id="@+id/tvNotification4"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Task Status Updated\nResult Analysis has been marked as completed."
-            android:textSize="17sp"
-            android:padding="18dp" />
-
-    </LinearLayout>
-
-</ScrollView>
+</LinearLayout>

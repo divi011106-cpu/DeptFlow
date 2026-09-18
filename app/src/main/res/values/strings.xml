@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DeptFlow</string>
+    <string name="faculty_status">Faculty</string>
+    <string name="unknown_faculty">Unknown Faculty</string>
+    <string name="message_format">%1$s: %2$s</string>
+    <string name="message_sent">Message sent</string>
+    <string name="send_message_error">Failed to send message</string>
+    <string name="load_messages_error">Error loading messages</string>
+    <string name="enter_message_warning">Please enter a message</string>
+
 
     <!-- Faculty Dashboard -->
     <string name="welcome_faculty">Welcome, Faculty 👋</string>

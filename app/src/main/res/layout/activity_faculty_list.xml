@@ -1,52 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#F5F7FA">
 
-    <LinearLayout
+    <!-- Page Title -->
+
+    <TextView
+        android:id="@+id/tvFacultyTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:text="Department Faculty"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#1A237E"
+        android:gravity="center"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Faculty Members"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:layout_marginBottom="10dp" />
+    <!-- Faculty List -->
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Select a faculty member to communicate"
-            android:textSize="16sp"
-            android:gravity="center"
-            android:layout_marginBottom="30dp" />
+    <ListView
+        android:id="@+id/listFaculty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="#D0D0D0"
+        android:dividerHeight="1dp"
+        android:background="#FFFFFF"
+        android:padding="4dp" />
 
-        <Button
-            android:id="@+id/btnFaculty1"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Priya - Information Technology"
-            android:layout_marginBottom="12dp" />
-
-        <Button
-            android:id="@+id/btnFaculty2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Kumar - Computer Science"
-            android:layout_marginBottom="12dp" />
-
-        <Button
-            android:id="@+id/btnFaculty3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Anitha - Artificial Intelligence" />
-
-    </LinearLayout>
-
-</ScrollView>
+</LinearLayout>
