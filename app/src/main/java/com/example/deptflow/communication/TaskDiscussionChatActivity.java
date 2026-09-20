@@ -1,18 +1,23 @@
 package com.example.deptflow.communication;
 
-import android.graphics.Color;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.widget.Button;
+import android.util.Log;
+import android.view.View;
 import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.deptflow.R;
+import com.example.deptflow.auth.AuthManager;
+import com.example.deptflow.communication.adapters.DiscussionChatAdapter;
+import com.example.deptflow.communication.models.DiscussionMessage;
+import com.example.deptflow.feature.faculty.models.FacultyUser;
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -21,72 +26,202 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+/**
+ * Modern Task Discussion Chat Activity.
+ * Provides a dedicated, real-time collaboration channel for all faculty members
+ * and the HOD assigned to a specific task.
+ */
 public class TaskDiscussionChatActivity extends AppCompatActivity {
 
-    private TextView tvTaskTitle;
-    private EditText etDiscussionMessage;
-    private Button btnDiscussionSend;
+    private static final String TAG = "TaskDiscussionChat";
 
-    private LinearLayout discussionMessageContainer;
-    private ScrollView scrollDiscussionMessages;
+    private TextView tvTaskTitle;
+    private TextView tvTaskSubtitle;
+    private ImageButton ibBackDiscussion;
+    private RecyclerView rvDiscussionMessages;
+    private View layoutEmptyChat;
+    private EditText etDiscussionMessage;
+    private ImageButton btnDiscussionSend;
+
+    private DiscussionChatAdapter adapter;
+    private final List<DiscussionMessage> messageList = new ArrayList<>();
 
     private FirebaseFirestore db;
     private FirebaseAuth firebaseAuth;
     private ListenerRegistration messageListener;
 
-    private String taskName;
+    private String taskId = "";
+    private String taskTitle = "";
+    private String taskDeadline = "";
+    private String discussionDocId = "";
 
     private String currentUserId = "";
-    private String currentUserName = "You";
+    private String currentUserName = "Faculty";
+    private String currentUserRole = "FACULTY";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_task_discussion_chat);
 
+        initViews();
+        extractIntentData();
+        loadCurrentUserInfo();
+        setupRecyclerView();
+        listenForDiscussionMessages();
+        setupSendButton();
+    }
+
+    private void initViews() {
         tvTaskTitle = findViewById(R.id.tvTaskTitle);
+        tvTaskSubtitle = findViewById(R.id.tvTaskSubtitle);
+        ibBackDiscussion = findViewById(R.id.ibBackDiscussion);
+        rvDiscussionMessages = findViewById(R.id.rvDiscussionMessages);
+        layoutEmptyChat = findViewById(R.id.layoutEmptyChat);
         etDiscussionMessage = findViewById(R.id.etDiscussionMessage);
         btnDiscussionSend = findViewById(R.id.btnDiscussionSend);
 
-        discussionMessageContainer =
-                findViewById(R.id.discussionMessageContainer);
+        if (ibBackDiscussion != null) {
+            ibBackDiscussion.setOnClickListener(v -> finish());
+        }
+    }
 
-        scrollDiscussionMessages =
-                findViewById(R.id.scrollDiscussionMessages);
+    private void extractIntentData() {
+        taskId = getIntent().getStringExtra("EXTRA_TASK_ID");
+        taskTitle = getIntent().getStringExtra("EXTRA_TASK_TITLE");
+        taskDeadline = getIntent().getStringExtra("EXTRA_TASK_DEADLINE");
 
+        // Fallback compatibility with older intents passing only "taskName"
+        if (taskTitle == null || taskTitle.trim().isEmpty()) {
+            taskTitle = getIntent().getStringExtra("taskName");
+        }
+        if (taskTitle == null || taskTitle.trim().isEmpty()) {
+            taskTitle = "Task Discussion";
+        }
+
+        if (taskId == null || taskId.trim().isEmpty()) {
+            taskId = taskTitle;
+        }
+
+        // Use taskId as document identifier to prevent name collisions
+        discussionDocId = taskId;
+
+        tvTaskTitle.setText(taskTitle);
+
+        if (taskDeadline != null && !taskDeadline.trim().isEmpty()) {
+            tvTaskSubtitle.setText("ID: " + taskId + " • Due: " + taskDeadline);
+        } else {
+            tvTaskSubtitle.setText("Task ID: " + taskId + " • Team Discussion");
+        }
+    }
+
+    private void loadCurrentUserInfo() {
         db = FirebaseFirestore.getInstance();
         firebaseAuth = FirebaseAuth.getInstance();
 
-        taskName = getIntent().getStringExtra("taskName");
-
-        if (taskName == null || taskName.trim().isEmpty()) {
-            taskName = "Task Discussion";
+        FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
+        if (firebaseUser != null) {
+            currentUserId = firebaseUser.getUid();
+            if (firebaseUser.getDisplayName() != null && !firebaseUser.getDisplayName().trim().isEmpty()) {
+                currentUserName = firebaseUser.getDisplayName().trim();
+            }
         }
 
-        tvTaskTitle.setText("Discussion - " + taskName);
+        FacultyUser cachedUser = AuthManager.getInstance(this).getCurrentUser();
+        if (cachedUser != null) {
+            if (cachedUser.getName() != null && !cachedUser.getName().trim().isEmpty()) {
+                currentUserName = cachedUser.getName().trim();
+            }
+            if (cachedUser.getRole() != null && !cachedUser.getRole().trim().isEmpty()) {
+                currentUserRole = cachedUser.getRole().trim().toUpperCase();
+            }
+        }
 
-        loadCurrentUser();
-        listenForMessages();
+        Log.d(TAG, "Current user loaded: UID=" + currentUserId + ", Name=" + currentUserName + ", Role=" + currentUserRole);
+    }
 
+    private void setupRecyclerView() {
+        adapter = new DiscussionChatAdapter(this, messageList, currentUserId);
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        layoutManager.setStackFromEnd(true);
+        rvDiscussionMessages.setLayoutManager(layoutManager);
+        rvDiscussionMessages.setAdapter(adapter);
+    }
+
+    private void listenForDiscussionMessages() {
+        messageListener = db.collection("task_discussions")
+                .document(discussionDocId)
+                .collection("messages")
+                .orderBy("timestamp", Query.Direction.ASCENDING)
+                .addSnapshotListener((snapshots, error) -> {
+                    if (error != null) {
+                        Log.e(TAG, "Error listening for discussion messages: " + error.getMessage(), error);
+                        return;
+                    }
+
+                    if (snapshots == null || snapshots.isEmpty()) {
+                        messageList.clear();
+                        adapter.setMessages(messageList);
+                        layoutEmptyChat.setVisibility(View.VISIBLE);
+                        return;
+                    }
+
+                    layoutEmptyChat.setVisibility(View.GONE);
+                    List<DiscussionMessage> freshMessages = new ArrayList<>();
+
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        String messageId = doc.getId();
+                        String senderId = doc.getString("senderId");
+                        String senderName = doc.getString("senderName");
+                        String sender = doc.getString("sender");
+                        String senderRole = doc.getString("senderRole");
+                        String messageText = doc.getString("message");
+
+                        if (senderName == null || senderName.trim().isEmpty()) {
+                            senderName = sender != null ? sender : "Faculty";
+                        }
+                        if (senderRole == null || senderRole.trim().isEmpty()) {
+                            senderRole = "Faculty";
+                        }
+
+                        long ts = 0L;
+                        Object tsObj = doc.get("timestamp");
+                        if (tsObj instanceof Timestamp) {
+                            ts = ((Timestamp) tsObj).toDate().getTime();
+                        } else if (tsObj instanceof Long) {
+                            ts = (Long) tsObj;
+                        } else if (tsObj instanceof Double) {
+                            ts = ((Double) tsObj).longValue();
+                        }
+
+                        if (messageText != null && !messageText.trim().isEmpty()) {
+                            freshMessages.add(new DiscussionMessage(
+                                    messageId, senderId, senderName, senderRole, messageText, ts
+                            ));
+                        }
+                    }
+
+                    messageList.clear();
+                    messageList.addAll(freshMessages);
+                    adapter.setMessages(messageList);
+
+                    if (!messageList.isEmpty()) {
+                        rvDiscussionMessages.scrollToPosition(messageList.size() - 1);
+                    }
+                });
+    }
+
+    private void setupSendButton() {
         btnDiscussionSend.setOnClickListener(v -> {
-
-            String message = etDiscussionMessage
-                    .getText()
-                    .toString()
-                    .trim();
+            String message = etDiscussionMessage.getText().toString().trim();
 
             if (message.isEmpty()) {
-
-                Toast.makeText(
-                        TaskDiscussionChatActivity.this,
-                        "Please enter a message",
-                        Toast.LENGTH_SHORT
-                ).show();
-
+                Toast.makeText(TaskDiscussionChatActivity.this, "Please enter a message", Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -94,179 +229,35 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
         });
     }
 
-    private void loadCurrentUser() {
-
-        FirebaseUser user = firebaseAuth.getCurrentUser();
-
-        if (user != null) {
-
-            currentUserId = user.getUid();
-
-            if (user.getDisplayName() != null &&
-                    !user.getDisplayName().trim().isEmpty()) {
-
-                currentUserName = user.getDisplayName();
-
-            } else {
-
-                currentUserName = "You";
-            }
-        }
-    }
-
     private void sendMessage(String message) {
+        btnDiscussionSend.setEnabled(false);
 
         Map<String, Object> messageData = new HashMap<>();
-
         messageData.put("senderId", currentUserId);
         messageData.put("senderName", currentUserName);
-        messageData.put("sender", currentUserName);
+        messageData.put("sender", currentUserName); // Legacy compatibility
+        messageData.put("senderRole", currentUserRole);
         messageData.put("message", message);
-        messageData.put("timestamp", FieldValue.serverTimestamp());
+        messageData.put("timestamp", System.currentTimeMillis());
 
         db.collection("task_discussions")
-                .document(taskName)
+                .document(discussionDocId)
                 .collection("messages")
                 .add(messageData)
                 .addOnSuccessListener(documentReference -> {
-
                     etDiscussionMessage.setText("");
-
+                    btnDiscussionSend.setEnabled(true);
                 })
                 .addOnFailureListener(e -> {
-
-                    Toast.makeText(
-                            TaskDiscussionChatActivity.this,
-                            "Message could not be sent.",
-                            Toast.LENGTH_SHORT
-                    ).show();
+                    btnDiscussionSend.setEnabled(true);
+                    Log.e(TAG, "Failed to send discussion message", e);
+                    Toast.makeText(TaskDiscussionChatActivity.this, "Failed to send message: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
-    }
-
-    private void listenForMessages() {
-
-        messageListener = db.collection("task_discussions")
-                .document(taskName)
-                .collection("messages")
-                .orderBy(
-                        "timestamp",
-                        Query.Direction.ASCENDING
-                )
-                .addSnapshotListener((snapshots, error) -> {
-
-                    if (error != null) {
-                        return;
-                    }
-
-                    if (snapshots == null) {
-                        return;
-                    }
-
-                    discussionMessageContainer.removeAllViews();
-
-                    for (DocumentSnapshot document :
-                            snapshots.getDocuments()) {
-
-                        String senderId =
-                                document.getString("senderId");
-
-                        String senderName =
-                                document.getString("senderName");
-
-                        String message =
-                                document.getString("message");
-
-                        if (senderName == null ||
-                                senderName.trim().isEmpty()) {
-
-                            senderName = "Faculty";
-                        }
-
-                        if (message != null) {
-
-                            addMessage(
-                                    senderId,
-                                    senderName,
-                                    message
-                            );
-                        }
-                    }
-
-                    scrollDiscussionMessages.post(() ->
-                            scrollDiscussionMessages.fullScroll(
-                                    ScrollView.FOCUS_DOWN
-                            )
-                    );
-                });
-    }
-
-    private void addMessage(
-            String senderId,
-            String senderName,
-            String message) {
-
-        TextView messageView = new TextView(this);
-
-        boolean isMyMessage =
-                currentUserId != null &&
-                        !currentUserId.isEmpty() &&
-                        currentUserId.equals(senderId);
-
-        if (isMyMessage) {
-
-            messageView.setText(message);
-            messageView.setBackgroundResource(
-                    R.drawable.bg_message_sent
-            );
-
-        } else {
-
-            messageView.setText(
-                    senderName + "\n" + message
-            );
-
-            messageView.setBackgroundResource(
-                    R.drawable.bg_message_received
-            );
-        }
-
-        messageView.setTextSize(16);
-        messageView.setTextColor(Color.BLACK);
-
-        messageView.setMaxWidth(
-                (int) (
-                        getResources()
-                                .getDisplayMetrics()
-                                .widthPixels * 0.75
-                )
-        );
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-
-        if (isMyMessage) {
-            params.gravity = Gravity.END;
-        } else {
-            params.gravity = Gravity.START;
-        }
-
-        params.setMargins(8, 5, 8, 5);
-
-        messageView.setLayoutParams(params);
-
-        discussionMessageContainer.addView(
-                messageView
-        );
     }
 
     @Override
     protected void onDestroy() {
-
         super.onDestroy();
-
         if (messageListener != null) {
             messageListener.remove();
         }

@@ -1,36 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#F5F7FA">
-
-    <!-- Page Title -->
+    android:background="#F3F6FC"
+    android:padding="16dp">
 
     <TextView
-        android:id="@+id/tvFacultyTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Department Faculty"
-        android:textSize="24sp"
+        android:text="Faculty Chat"
+        android:textSize="26sp"
         android:textStyle="bold"
-        android:textColor="#1A237E"
-        android:gravity="center"
-        android:padding="12dp"
-        android:layout_marginBottom="12dp" />
+        android:textColor="#2447A8"
+        android:paddingBottom="8dp" />
 
-    <!-- Faculty List -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select a faculty member to start chatting"
+        android:textSize="15sp"
+        android:textColor="#64748B"
+        android:paddingBottom="16dp" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Loading faculty members..."
+        android:textColor="#64748B"
+        android:textSize="15sp"
+        android:padding="8dp" />
 
     <ListView
         android:id="@+id/listFaculty"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:divider="#D0D0D0"
+        android:divider="#D9E2F2"
         android:dividerHeight="1dp"
         android:background="#FFFFFF"
-        android:padding="4dp" />
+        android:padding="4dp"
+        android:clipToPadding="false" />
 
 </LinearLayout>

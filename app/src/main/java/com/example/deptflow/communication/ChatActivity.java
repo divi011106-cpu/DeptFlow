@@ -1,8 +1,12 @@
+
 package com.example.deptflow.communication;
 
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -13,8 +17,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
-import com.example.deptflow.auth.AuthManager;
-
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -23,21 +25,16 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public class ChatActivity extends AppCompatActivity {
 
-    private TextView tvChatTitle;
-    private TextView tvStatus;
-
+    private TextView tvChatTitle, tvStatus;
     private EditText etMessage;
-    private Button btnSend;
-    private Button btnBack;
-
+    private Button btnSend, btnBack, btnEmoji;
     private LinearLayout messageContainer;
     private ScrollView scrollMessages;
 
@@ -45,297 +42,330 @@ public class ChatActivity extends AppCompatActivity {
     private FirebaseAuth firebaseAuth;
     private ListenerRegistration messageListener;
 
-    private String facultyName;
-
+    private String facultyName = "Faculty";
+    private String selectedFacultyId = "";
     private String currentUserId = "";
-    private String currentUserName = "";
-    private String currentUserRole = "";
+    private String currentUserName = "User";
+    private String currentUserRole = "USER";
+    private String chatId = "";
+
+    private boolean identityLoaded = false;
+    private boolean chatScreenActive = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_chat);
 
-        // Connect XML views
         tvChatTitle = findViewById(R.id.tvChatTitle);
         tvStatus = findViewById(R.id.tvStatus);
-
         etMessage = findViewById(R.id.etMessage);
         btnSend = findViewById(R.id.btnSend);
         btnBack = findViewById(R.id.btnBack);
-
+        btnEmoji = findViewById(R.id.btnEmoji);
         messageContainer = findViewById(R.id.messageContainer);
         scrollMessages = findViewById(R.id.scrollMessages);
 
-        // Firebase
         db = FirebaseFirestore.getInstance();
         firebaseAuth = FirebaseAuth.getInstance();
 
-        // Get selected faculty
         facultyName = getIntent().getStringExtra("facultyName");
+        selectedFacultyId = getIntent().getStringExtra("facultyId");
 
         if (facultyName == null || facultyName.trim().isEmpty()) {
             facultyName = "Faculty";
         }
 
+        if (selectedFacultyId == null) {
+            selectedFacultyId = "";
+        }
+
         tvChatTitle.setText(facultyName);
-        tvStatus.setText("Faculty");
+        tvStatus.setText("Loading account...");
+        btnSend.setEnabled(false);
 
-        // Get logged-in user
-        loadCurrentUser();
+        btnBack.setOnClickListener(v -> finish());
 
-        // Start listening for messages
-        listenForMessages();
+        btnEmoji.setOnClickListener(v -> {
+            etMessage.requestFocus();
 
-        // Back button
-        btnBack.setOnClickListener(v ->
-                getOnBackPressedDispatcher().onBackPressed()
-        );
+            InputMethodManager imm =
+                    (InputMethodManager) getSystemService(
+                            Context.INPUT_METHOD_SERVICE
+                    );
 
-        // Send button
+            if (imm != null) {
+                imm.showSoftInput(
+                        etMessage,
+                        InputMethodManager.SHOW_IMPLICIT
+                );
+            }
+        });
+
         btnSend.setOnClickListener(v -> {
-
-            String message = etMessage.getText()
-                    .toString()
-                    .trim();
+            String message = etMessage.getText().toString().trim();
 
             if (message.isEmpty()) {
-
-                Toast.makeText(
-                        ChatActivity.this,
-                        "Please enter a message",
-                        Toast.LENGTH_SHORT
-                ).show();
-
+                Toast.makeText(this, "Enter a message", Toast.LENGTH_SHORT)
+                        .show();
                 return;
             }
 
             sendMessage(message);
         });
-    }
 
-    /**
-     * Get currently logged-in faculty/user information.
-     */
-    private void loadCurrentUser() {
-
-        FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
-
-        if (firebaseUser != null) {
-            currentUserId = firebaseUser.getUid();
-
-            if (firebaseUser.getDisplayName() != null &&
-                    !firebaseUser.getDisplayName().isEmpty()) {
-
-                currentUserName = firebaseUser.getDisplayName();
-
-            } else {
-                currentUserName = "You";
-            }
-        } else {
-            currentUserName = "You";
+        if (selectedFacultyId.trim().isEmpty()) {
+            tvStatus.setText("Faculty ID missing. Reopen faculty list.");
+            return;
         }
 
-        currentUserRole = "FACULTY";
+        loadCurrentUser();
     }
 
-    /**
-     * Send message to Firestore.
-     */
-    private void sendMessage(String message) {
+    private void loadCurrentUser() {
+        FirebaseUser authUser = firebaseAuth.getCurrentUser();
 
-        Map<String, Object> messageData =
-                new HashMap<>();
+        if (authUser == null || authUser.getEmail() == null) {
+            tvStatus.setText("Please log in first.");
+            return;
+        }
 
-        // New sender information
-        messageData.put("senderId", currentUserId);
-        messageData.put("senderName", currentUserName);
-        messageData.put("senderRole", currentUserRole);
+        db.collection("users")
+                .whereEqualTo("email", authUser.getEmail())
+                .limit(1)
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    if (snapshot.isEmpty()) {
+                        tvStatus.setText("Your account was not found.");
+                        return;
+                    }
 
-        // Keep old field for compatibility
-        messageData.put("sender", currentUserName);
+                    DocumentSnapshot userDoc =
+                            snapshot.getDocuments().get(0);
 
-        messageData.put("message", message);
-        messageData.put(
-                "timestamp",
-                FieldValue.serverTimestamp()
-        );
+                    String userId = userDoc.getString("userID");
+                    if (userId == null || userId.trim().isEmpty()) {
+                        userId = userDoc.getId();
+                    }
 
-        db.collection("chats")
-                .document(facultyName)
-                .collection("messages")
-                .add(messageData)
-                .addOnSuccessListener(documentReference -> {
+                    currentUserId = userId;
+                    currentUserName = userDoc.getString("name") == null
+                            ? "User" : userDoc.getString("name");
+                    currentUserRole = userDoc.getString("role") == null
+                            ? "USER" : userDoc.getString("role");
 
-                    // Clear input
-                    etMessage.setText("");
+                    if (currentUserId.equals(selectedFacultyId)) {
+                        tvStatus.setText("You cannot chat with yourself.");
+                        return;
+                    }
 
+                    identityLoaded = true;
+                    createChatId();
+
+                    btnSend.setEnabled(true);
+                    tvStatus.setText("Connected");
+
+                    listenForMessages();
                 })
                 .addOnFailureListener(e -> {
-
+                    tvStatus.setText("Could not load account.");
                     Toast.makeText(
-                            ChatActivity.this,
-                            "Message could not be sent.",
-                            Toast.LENGTH_SHORT
+                            this,
+                            e.getMessage(),
+                            Toast.LENGTH_LONG
                     ).show();
                 });
     }
 
-    /**
-     * Listen for messages in real time.
-     */
+    private void createChatId() {
+        ArrayList<String> ids = new ArrayList<>();
+        ids.add(currentUserId);
+        ids.add(selectedFacultyId);
+        Collections.sort(ids);
+        chatId = ids.get(0) + "_" + ids.get(1);
+    }
+
+    private void sendMessage(String message) {
+        if (!identityLoaded || chatId.isEmpty()) {
+            Toast.makeText(this, "Chat is not ready.", Toast.LENGTH_SHORT)
+                    .show();
+            return;
+        }
+
+        btnSend.setEnabled(false);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("senderId", currentUserId);
+        data.put("senderName", currentUserName);
+        data.put("senderRole", currentUserRole);
+        data.put("message", message);
+        data.put("timestamp", FieldValue.serverTimestamp());
+
+        // Initial receipt state
+        data.put("deliveredTo", new ArrayList<String>());
+        data.put("readBy", new ArrayList<String>());
+
+        db.collection("chats")
+                .document(chatId)
+                .collection("messages")
+                .add(data)
+                .addOnSuccessListener(ref -> {
+                    etMessage.setText("");
+                    btnSend.setEnabled(true);
+                })
+                .addOnFailureListener(e -> {
+                    btnSend.setEnabled(true);
+                    tvStatus.setText("Message could not be sent.");
+                    Toast.makeText(
+                            this,
+                            "Send error: " + e.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+    }
+
     private void listenForMessages() {
+        if (!identityLoaded || chatId.isEmpty()) return;
 
         messageListener = db.collection("chats")
-                .document(facultyName)
+                .document(chatId)
                 .collection("messages")
-                .orderBy(
-                        "timestamp",
-                        Query.Direction.ASCENDING
-                )
+                .orderBy("timestamp", Query.Direction.ASCENDING)
                 .addSnapshotListener((snapshots, error) -> {
-
                     if (error != null) {
-
-                        // Firestore permission issue will
-                        // be fixed by your friend later.
+                        tvStatus.setText("Unable to load messages.");
                         return;
                     }
 
-                    if (snapshots == null) {
-                        return;
-                    }
+                    if (snapshots == null) return;
 
                     messageContainer.removeAllViews();
 
-                    for (DocumentSnapshot document :
-                            snapshots.getDocuments()) {
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        String senderId = doc.getString("senderId");
+                        String senderName = doc.getString("senderName");
+                        String message = doc.getString("message");
 
-                        String senderId =
-                                document.getString("senderId");
+                        if (message == null) continue;
 
-                        String senderName =
-                                document.getString("senderName");
+                        boolean isMine = currentUserId.equals(senderId);
 
-                        String sender =
-                                document.getString("sender");
-
-                        String message =
-                                document.getString("message");
-
-                        // New format
-                        if (senderName == null ||
-                                senderName.trim().isEmpty()) {
-
-                            senderName = sender;
+                        // When recipient sees a message, mark delivered/read.
+                        if (!isMine && chatScreenActive) {
+                            markMessageRead(doc);
                         }
 
-                        if (senderName == null ||
-                                senderName.trim().isEmpty()) {
-
-                            senderName = "Faculty";
-                        }
-
-                        if (message != null) {
-
-                            addMessage(
-                                    senderId,
-                                    senderName,
-                                    message
-                            );
-                        }
+                        addMessage(doc, senderId, senderName, message);
                     }
 
                     scrollMessages.post(() ->
-                            scrollMessages.fullScroll(
-                                    ScrollView.FOCUS_DOWN
-                            )
+                            scrollMessages.fullScroll(View.FOCUS_DOWN)
                     );
                 });
     }
 
-    /**
-     * Add a message bubble to the chat.
-     */
+    private void markMessageRead(DocumentSnapshot doc) {
+        db.collection("chats")
+                .document(chatId)
+                .collection("messages")
+                .document(doc.getId())
+                .update(
+                        "deliveredTo",
+                        FieldValue.arrayUnion(currentUserId),
+                        "readBy",
+                        FieldValue.arrayUnion(currentUserId)
+                );
+    }
+
     private void addMessage(
+            DocumentSnapshot doc,
             String senderId,
             String senderName,
-            String message) {
+            String message
+    ) {
+        boolean isMine = currentUserId.equals(senderId);
 
-        TextView messageView =
-                new TextView(this);
+        TextView messageView = new TextView(this);
 
-        boolean isMyMessage =
-                currentUserId != null &&
-                        !currentUserId.isEmpty() &&
-                        currentUserId.equals(senderId);
-
-        // Message text
-        String displayText;
-
-        if (isMyMessage) {
-
-            displayText = message;
-
+        if (isMine) {
+            messageView.setText(message);
         } else {
-
-            displayText =
-                    senderName + "\n" + message;
+            String name = senderName == null ? "Faculty" : senderName;
+            messageView.setText(name + "\n" + message);
         }
-
-        messageView.setText(displayText);
 
         messageView.setTextSize(16);
         messageView.setTextColor(Color.BLACK);
-
+        messageView.setPadding(24, 16, 24, 16);
         messageView.setMaxWidth(
-                (int) (getResources()
-                        .getDisplayMetrics()
-                        .widthPixels * 0.75)
+                (int) (getResources().getDisplayMetrics().widthPixels * 0.75)
         );
 
-        // Layout parameters
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
 
-        if (isMyMessage) {
+        params.gravity = isMine ? Gravity.END : Gravity.START;
+        params.setMargins(8, 5, 8, 5);
 
-            // My message → RIGHT
-            params.gravity = Gravity.END;
-
-            messageView.setBackgroundResource(
-                    R.drawable.bg_message_sent
-            );
-
-        } else {
-
-            // Other faculty → LEFT
-            params.gravity = Gravity.START;
-
-            messageView.setBackgroundResource(
-                    R.drawable.bg_message_received
-            );
-        }
-
-        params.setMargins(
-                8,
-                5,
-                8,
-                5
+        messageView.setBackgroundResource(
+                isMine
+                        ? R.drawable.bg_message_sent
+                        : R.drawable.bg_message_received
         );
 
         messageView.setLayoutParams(params);
-
         messageContainer.addView(messageView);
+
+        // Tick indicator for your own messages
+        if (isMine) {
+            ArrayList<String> deliveredTo =
+                    (ArrayList<String>) doc.get("deliveredTo");
+            ArrayList<String> readBy =
+                    (ArrayList<String>) doc.get("readBy");
+
+            boolean delivered = deliveredTo != null
+                    && deliveredTo.contains(selectedFacultyId);
+
+            boolean read = readBy != null
+                    && readBy.contains(selectedFacultyId);
+
+            TextView tickView = new TextView(this);
+            tickView.setText(read ? "✓✓" : delivered ? "✓✓" : "✓");
+            tickView.setTextColor(
+                    read ? Color.BLUE : Color.GRAY
+            );
+            tickView.setTextSize(12);
+
+            LinearLayout.LayoutParams tickParams =
+                    new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+
+            tickParams.gravity = Gravity.END;
+            tickParams.setMargins(0, 0, 12, 4);
+
+            messageContainer.addView(tickView, tickParams);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        chatScreenActive = true;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        chatScreenActive = false;
     }
 
     @Override
     protected void onDestroy() {
-
         super.onDestroy();
 
         if (messageListener != null) {

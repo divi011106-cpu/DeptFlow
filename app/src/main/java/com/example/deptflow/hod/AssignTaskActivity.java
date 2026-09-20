@@ -284,7 +284,7 @@ public class AssignTaskActivity extends AppCompatActivity {
                 docMap.put("assignedFacultyCount", selectedList.size());
                 docMap.put("timestamp", System.currentTimeMillis());
 
-                db.collection("tasks").document(docId).set(docMap);
+                db.collection("task_assignments").document(docId).set(docMap);
             }
 
             // Synchronize with local TaskData.tasks bridge so any synchronous in-memory readers have it immediately

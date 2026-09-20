@@ -1,85 +1,177 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#F5F7FB">
+    android:background="@color/background">
 
-    <!-- Header -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="70dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="16dp"
-        android:background="#3949AB">
-
-        <TextView
-            android:id="@+id/tvTaskTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Task Discussion"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-    </LinearLayout>
-
-    <!-- Messages -->
-    <ScrollView
-        android:id="@+id/scrollDiscussionMessages"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true"
-        android:padding="10dp">
-
-        <LinearLayout
-            android:id="@+id/discussionMessageContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-
-    </ScrollView>
-
-    <!-- Message input -->
+    <!-- Top Chat Toolbar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="8dp"
-        android:background="#FFFFFF">
+        android:background="@color/primary"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="10dp"
+        android:elevation="4dp">
+
+        <ImageButton
+            android:id="@+id/ibBackDiscussion"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
+            android:contentDescription="@string/back" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="6dp"
+            android:paddingEnd="12dp">
+
+            <TextView
+                android:id="@+id/tvTaskTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_white"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                tools:text="Discussion - Result Analysis" />
+
+            <TextView
+                android:id="@+id/tvTaskSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_white_translucent"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                tools:text="Task Discussion Group" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Messages Container Area -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- Modern RecyclerView for Chat Bubbles -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvDiscussionMessages"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            tools:listitem="@layout/item_discussion_message_received" />
+
+        <!-- Empty Chat State -->
+        <LinearLayout
+            android:id="@+id/layoutEmptyChat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@drawable/ic_chat"
+                android:alpha="0.3"
+                app:tint="@color/primary"
+                android:contentDescription="@null"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No Messages Yet"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Be the first to share notes or questions on this task."
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+        <!-- Legacy View stubs to guarantee compile safety for existing TaskDiscussionChatActivity -->
+        <ScrollView
+            android:id="@+id/scrollDiscussionMessages"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:id="@+id/discussionMessageContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+        </ScrollView>
+
+    </FrameLayout>
+
+    <!-- Bottom Chat Input Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:background="@color/surface"
+        android:elevation="8dp">
 
         <EditText
             android:id="@+id/etDiscussionMessage"
             android:layout_width="0dp"
-            android:layout_height="50dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Discuss this task..."
-            android:textSize="16sp"
-            android:textColor="#222222"
-            android:textColorHint="#888888"
+            android:minHeight="46dp"
+            android:hint="Type discussion message..."
+            android:textColorHint="@color/text_tertiary"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
             android:background="@drawable/bg_chat_input"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:inputType="textCapSentences|textMultiLine"
-            android:maxLines="3" />
+            android:maxLines="4" />
 
-        <Button
+        <!-- Send Button -->
+        <ImageButton
             android:id="@+id/btnDiscussionSend"
-            android:layout_width="58dp"
-            android:layout_height="50dp"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
             android:layout_marginStart="8dp"
-            android:text="➤"
-            android:textSize="22sp"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:backgroundTint="#3949AB"
-            android:contentDescription="Send discussion message" />
+            android:background="@drawable/bg_button_primary"
+            android:backgroundTint="@color/primary"
+            android:src="@drawable/ic_send"
+            android:contentDescription="Send discussion message"
+            android:elevation="2dp" />
 
     </LinearLayout>
 
