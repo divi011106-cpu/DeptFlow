@@ -45,6 +45,8 @@ public class MyTasksActivity extends AppCompatActivity implements TaskAdapter.On
 
     private FilterStatus currentFilter = FilterStatus.ALL;
 
+    private final TaskRepository.OnTasksChangedListener tasksChangedListener = this::loadTasks;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -58,6 +60,8 @@ public class MyTasksActivity extends AppCompatActivity implements TaskAdapter.On
         setupRecyclerView();
         setupFilterChips();
         loadTasks();
+
+        taskRepository.addOnTasksChangedListener(tasksChangedListener);
     }
 
     @Override
@@ -66,6 +70,14 @@ public class MyTasksActivity extends AppCompatActivity implements TaskAdapter.On
         // Refresh tasks when returning from TaskDetailsActivity with updated status or when new HOD tasks arrive
         currentUser = sessionManager.getCurrentUser();
         loadTasks();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (taskRepository != null) {
+            taskRepository.removeOnTasksChangedListener(tasksChangedListener);
+        }
     }
 
     private void initViews() {

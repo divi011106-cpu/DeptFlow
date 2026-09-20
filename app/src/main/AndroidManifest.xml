@@ -87,6 +87,11 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".hod.HodProfileActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Communication Module -->
         <activity
             android:name=".communication.CommunicationActivity"

@@ -8,28 +8,26 @@ import com.example.deptflow.feature.faculty.models.FacultyUser;
 import com.example.deptflow.feature.faculty.models.Task;
 import com.example.deptflow.hod.TaskData;
 
+import android.os.Handler;
+import android.os.Looper;
+
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+
 import org.json.JSONArray;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * TaskRepository — Faculty-side task data manager.
- *
- * SOURCE OF TRUTH for task assignments is HOD's TaskData.tasks (in-memory static list).
- *
- * PERSISTENCE BRIDGE:
- * Because TaskData.tasks is in-memory only and is cleared when the app process restarts,
- * this repository persists the raw HOD task strings to SharedPreferences whenever it
- * reads a non-empty TaskData.tasks. On subsequent launches (where TaskData.tasks is
- * empty), it restores from SharedPreferences back into TaskData.tasks, ensuring
- * continuity across HOD → Faculty login transitions without modifying the HOD module.
- *
- * DEBUG:
- * Set VERBOSE_DEBUG = true and filter Logcat by "DEPTFLOW_TASK_DEBUG" to trace
- * exactly what is loaded, parsed, and matched at runtime.
+ * TaskRepository — Faculty-side task data manager with live Firestore sync.
  */
 public class TaskRepository {
+
+    public interface OnTasksChangedListener {
+        void onTasksChanged();
+    }
 
     private static final String TAG = "DEPTFLOW_TASK_DEBUG";
     private static final boolean VERBOSE_DEBUG = true;
@@ -47,6 +45,11 @@ public class TaskRepository {
     private static TaskRepository instance;
     private final SharedPreferences preferences;
 
+    private final List<Task> firestoreTasks = new ArrayList<>();
+    private final List<OnTasksChangedListener> changeListeners = new ArrayList<>();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private ListenerRegistration firestoreListener;
+
     // -----------------------------------------------------------------------
     // Singleton
     // -----------------------------------------------------------------------
@@ -54,9 +57,8 @@ public class TaskRepository {
     private TaskRepository(Context context) {
         preferences = context.getApplicationContext()
                 .getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        // Restore any previously persisted HOD tasks back into TaskData.tasks
-        // so the in-memory list is consistent even after app restarts.
         restoreHodTasksFromPrefs();
+        initFirestoreListener();
     }
 
     public static synchronized TaskRepository getInstance(Context context) {
@@ -64,6 +66,103 @@ public class TaskRepository {
             instance = new TaskRepository(context);
         }
         return instance;
+    }
+
+    private void initFirestoreListener() {
+        try {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            firestoreListener = db.collection("tasks").addSnapshotListener((snapshots, error) -> {
+                if (error != null) {
+                    Log.w(TAG, "initFirestoreListener error: " + error.getMessage());
+                    return;
+                }
+                if (snapshots != null) {
+                    synchronized (TaskRepository.this) {
+                        firestoreTasks.clear();
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Task task = taskFromDocument(doc);
+                            if (task != null) {
+                                firestoreTasks.add(task);
+                            }
+                        }
+                        Log.d(TAG, "initFirestoreListener: loaded " + firestoreTasks.size() + " tasks from Firestore");
+                    }
+                    notifyChangeListeners();
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "initFirestoreListener exception: " + e.getMessage());
+        }
+    }
+
+    public synchronized void addOnTasksChangedListener(OnTasksChangedListener listener) {
+        if (listener != null && !changeListeners.contains(listener)) {
+            changeListeners.add(listener);
+        }
+    }
+
+    public synchronized void removeOnTasksChangedListener(OnTasksChangedListener listener) {
+        changeListeners.remove(listener);
+    }
+
+    private void notifyChangeListeners() {
+        mainHandler.post(() -> {
+            List<OnTasksChangedListener> copy;
+            synchronized (TaskRepository.this) {
+                copy = new ArrayList<>(changeListeners);
+            }
+            for (OnTasksChangedListener l : copy) {
+                try {
+                    l.onTasksChanged();
+                } catch (Exception e) {
+                    Log.e(TAG, "listener error", e);
+                }
+            }
+        });
+    }
+
+    private Task taskFromDocument(DocumentSnapshot doc) {
+        if (doc == null || !doc.exists()) return null;
+        String id = doc.getString("taskId");
+        if (id == null || id.isEmpty()) id = doc.getString("id");
+        if (id == null || id.isEmpty()) id = doc.getId();
+
+        String title = doc.getString("taskTitle");
+        if (title == null || title.isEmpty()) title = doc.getString("title");
+        if (title == null || title.isEmpty()) title = "Task " + id;
+
+        String description = doc.getString("description");
+        if (description == null) description = "";
+
+        String assignedTo = doc.getString("assignedTo");
+        if (assignedTo == null || assignedTo.isEmpty()) assignedTo = doc.getString("faculty");
+        if (assignedTo == null || assignedTo.isEmpty()) {
+            Object obj = doc.get("assignedFaculty");
+            if (obj instanceof List) {
+                List<?> list = (List<?>) obj;
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < list.size(); i++) {
+                    sb.append(String.valueOf(list.get(i)));
+                    if (i < list.size() - 1) sb.append("\n");
+                }
+                assignedTo = sb.toString();
+            } else {
+                assignedTo = "";
+            }
+        }
+
+        String assignedBy = doc.getString("assignedBy");
+        if (assignedBy == null || assignedBy.isEmpty()) assignedBy = "HOD";
+
+        String deadline = doc.getString("deadline");
+        if (deadline == null || deadline.isEmpty()) deadline = "No Deadline";
+
+        String status = normalizeStatus(doc.getString("status"));
+        String priority = doc.getString("priority");
+        if (priority == null || priority.isEmpty()) priority = Task.PRIORITY_MEDIUM;
+        else priority = priority.toUpperCase();
+
+        return new Task(id, title, description, assignedTo, assignedBy, deadline, status, priority);
     }
 
     // -----------------------------------------------------------------------
@@ -454,13 +553,34 @@ public class TaskRepository {
 
         Log.d(TAG, "getTasksForFaculty: currentUser.name=[" + user.getName() + "] userId=[" + user.getUserId() + "]");
 
-        List<Task> hodTasks = getHodTasks();
-        Log.d(TAG, "getTasksForFaculty: HOD task count = " + hodTasks.size());
+        // 1. Gather all candidate tasks from Firestore cache and local HOD list (deduplicating by taskId)
+        List<Task> candidates = new ArrayList<>();
+        if (!firestoreTasks.isEmpty()) {
+            candidates.addAll(firestoreTasks);
+        }
 
-        for (Task task : hodTasks) {
+        List<Task> hodTasks = getHodTasks();
+        for (Task ht : hodTasks) {
+            boolean exists = false;
+            for (Task ct : candidates) {
+                if (ct.getTaskId() != null && ct.getTaskId().equalsIgnoreCase(ht.getTaskId())) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                candidates.add(ht);
+            }
+        }
+
+        Log.d(TAG, "getTasksForFaculty: total candidate task count = " + candidates.size());
+
+        for (Task task : candidates) {
             boolean matched = isTaskAssignedToFaculty(task, user);
             Log.d(TAG, "  task[" + task.getTaskId() + "] title=[" + task.getTaskTitle() + "] MATCH=" + matched);
-            if (matched) result.add(task);
+            if (matched) {
+                result.add(task);
+            }
         }
 
         Log.d(TAG, "getTasksForFaculty: returning " + result.size() + " task(s) for [" + user.getName() + "]");
@@ -469,14 +589,20 @@ public class TaskRepository {
 
     /**
      * Retrieves a task by its unique ID.
-     * For HOD tasks (prefix HOD-TASK-), re-reads from TaskData.tasks/prefs live
-     * so status changes are always reflected.
+     * First checks Firestore cache, then legacy HOD tasks.
      */
     public synchronized Task getTaskById(String taskId) {
         if (taskId == null) return null;
 
+        // 1. Check Firestore tasks cache
+        for (Task t : firestoreTasks) {
+            if (taskId.equalsIgnoreCase(t.getTaskId())) {
+                return t;
+            }
+        }
+
+        // 2. Check legacy HOD task list
         if (taskId.startsWith(HOD_TASK_PREFIX)) {
-            // Ensure list is populated
             if (TaskData.tasks == null || TaskData.tasks.isEmpty()) {
                 restoreHodTasksFromPrefs();
             }
@@ -486,11 +612,17 @@ public class TaskRepository {
                     Task t = parseHodTask(TaskData.tasks.get(index), index);
                     Log.d(TAG, "getTaskById: found HOD task at index " + index + " title=[" + (t != null ? t.getTaskTitle() : "null") + "]");
                     return t;
-                } else {
-                    Log.e(TAG, "getTaskById: index " + index + " out of bounds (size=" + (TaskData.tasks != null ? TaskData.tasks.size() : "null") + ")");
                 }
             } catch (NumberFormatException e) {
                 Log.e(TAG, "getTaskById: bad taskId=" + taskId, e);
+            }
+        }
+
+        // 3. Fallback linear search across getHodTasks()
+        List<Task> hodTasks = getHodTasks();
+        for (Task t : hodTasks) {
+            if (taskId.equalsIgnoreCase(t.getTaskId())) {
+                return t;
             }
         }
 
@@ -499,18 +631,34 @@ public class TaskRepository {
 
     /**
      * Updates the status of a task.
-     *
-     * For HOD tasks: updates the raw string inside TaskData.tasks (in-memory)
-     * AND re-persists the updated list to SharedPreferences so the change
-     * survives app restarts and is visible to both HOD ViewTasksActivity
-     * (same session) and Faculty on subsequent opens.
+     * Persists change to Cloud Firestore and updates local caches.
      */
     public synchronized boolean updateTaskStatus(String taskId, String newStatus) {
         if (taskId == null || newStatus == null) return false;
-        String status = newStatus.trim().toUpperCase();
+        String status = normalizeStatus(newStatus);
+        boolean updated = false;
 
+        // 1. Update in local firestoreTasks list
+        for (Task t : firestoreTasks) {
+            if (taskId.equalsIgnoreCase(t.getTaskId())) {
+                t.setStatus(status);
+                updated = true;
+                break;
+            }
+        }
+
+        // 2. Persist update to Cloud Firestore
+        try {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            db.collection("tasks").document(taskId).update("status", status)
+                    .addOnFailureListener(e -> Log.e(TAG, "Firestore status update failed: " + e.getMessage()));
+            updated = true;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to update status in Firestore: " + e.getMessage());
+        }
+
+        // 3. Update legacy in-memory TaskData.tasks if applicable
         if (taskId.startsWith(HOD_TASK_PREFIX)) {
-            // Ensure list is populated first
             if (TaskData.tasks == null || TaskData.tasks.isEmpty()) {
                 restoreHodTasksFromPrefs();
             }
@@ -518,27 +666,23 @@ public class TaskRepository {
                 int index = Integer.parseInt(taskId.substring(HOD_TASK_PREFIX.length()));
                 if (TaskData.tasks != null && index >= 0 && index < TaskData.tasks.size()) {
                     String raw = TaskData.tasks.get(index);
-                    String updated;
+                    String u;
                     if (raw.contains("Status:")) {
-                        // Replace existing Status: line
-                        updated = raw.replaceAll("(?i)Status:[^\r\n]*", "Status: " + status);
+                        u = raw.replaceAll("(?i)Status:[^\r\n]*", "Status: " + status);
                     } else {
-                        // Append Status: line
-                        updated = raw.trim() + "\nStatus: " + status;
+                        u = raw.trim() + "\nStatus: " + status;
                     }
-                    TaskData.tasks.set(index, updated);
-                    // Re-persist so Faculty sees the change across restarts
+                    TaskData.tasks.set(index, u);
                     persistHodTasksToPrefs();
-                    Log.d(TAG, "updateTaskStatus: HOD task[" + index + "] status -> " + status);
-                    return true;
+                    updated = true;
                 }
             } catch (Exception e) {
                 Log.e(TAG, "updateTaskStatus: error", e);
             }
-            return false;
         }
 
-        return false;
+        notifyChangeListeners();
+        return updated;
     }
 
     // -----------------------------------------------------------------------

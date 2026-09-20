@@ -33,6 +33,8 @@ public class FacultyDashboardActivity extends AppCompatActivity {
     private TaskRepository taskRepository;
     private FacultyUser currentUser;
 
+    private final TaskRepository.OnTasksChangedListener tasksChangedListener = this::updateStatistics;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -44,6 +46,8 @@ public class FacultyDashboardActivity extends AppCompatActivity {
         initViews();
         setupUserData();
         setupClickListeners();
+
+        taskRepository.addOnTasksChangedListener(tasksChangedListener);
     }
 
     @Override
@@ -51,6 +55,14 @@ public class FacultyDashboardActivity extends AppCompatActivity {
         super.onResume();
         // Refresh user data and statistics when returning from MyTasks or TaskDetails
         setupUserData();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (taskRepository != null) {
+            taskRepository.removeOnTasksChangedListener(tasksChangedListener);
+        }
     }
 
     private void initViews() {

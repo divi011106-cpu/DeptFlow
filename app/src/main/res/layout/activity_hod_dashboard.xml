@@ -67,23 +67,24 @@
                         android:textColor="@color/gold_accent"
                         android:textStyle="bold" />
 
-                    <!-- Welcome message: Welcome, HOD -->
+                    <!-- Welcome message: Department of Information Technology -->
                     <TextView
                         android:id="@+id/tvWelcomeMessage"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="Welcome, HOD"
+                        android:text="Department of Information Technology"
                         android:textSize="15sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_white" />
 
                     <!-- Department Badge -->
                     <TextView
+                        android:id="@+id/tvDeptBadge"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Department of Computer Science &amp; Engineering"
+                        android:text="Head of Department Executive Portal"
                         android:textSize="12sp"
                         android:textColor="@color/text_white_translucent"
                         android:background="#26FFFFFF"
@@ -467,65 +468,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- 3. Faculty Status Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardFacultyStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:layout_marginBottom="6dp"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="3dp"
-                    app:strokeWidth="1dp"
-                    app:strokeColor="@color/card_stroke"
-                    app:cardBackgroundColor="@color/surface">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="16dp"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@drawable/ic_faculty_status"
-                            android:padding="10dp"
-                            android:background="@drawable/bg_stat_inprogress"
-                            app:tint="@color/status_in_progress" />
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="14dp"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/action_faculty_status"
-                                android:textSize="16sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/text_primary" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/action_faculty_status_desc"
-                                android:textSize="13sp"
-                                android:textColor="@color/text_secondary" />
-                        </LinearLayout>
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@drawable/ic_arrow_forward" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- 4. Reports & Analytics Card -->
+                <!-- 3. Reports & Analytics Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardReports"
                     android:layout_width="match_parent"
@@ -583,9 +526,9 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- 5. Notifications Card -->
+                <!-- 4. HOD Profile Card -->
                 <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardNotifications"
+                    android:id="@+id/cardProfile"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
@@ -606,7 +549,7 @@
                         <ImageView
                             android:layout_width="48dp"
                             android:layout_height="48dp"
-                            android:src="@drawable/ic_notifications"
+                            android:src="@drawable/ic_person"
                             android:padding="10dp"
                             android:background="@drawable/bg_stat_total"
                             app:tint="@color/primary" />
@@ -621,7 +564,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="@string/action_notifications"
+                                android:text="HOD Profile"
                                 android:textSize="16sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary" />
@@ -629,7 +572,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="@string/action_notifications_desc"
+                                android:text="View and manage executive departmental profile"
                                 android:textSize="13sp"
                                 android:textColor="@color/text_secondary" />
                         </LinearLayout>
@@ -641,7 +584,7 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- 6. Logout Card -->
+                <!-- 5. Logout Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardLogout"
                     android:layout_width="match_parent"

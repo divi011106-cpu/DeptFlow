@@ -19,7 +19,7 @@ public class FacultyListActivity extends AppCompatActivity {
             "Dr. R. Vijayalakshmi",
             "Dr. R. Raja Sudharsan",
             "Dr. K. M. Alaaudeen",
-            "Dr. T. Sarnya",
+            "Dr. T. Saranya",
             "Mrs. M. Prabha",
             "Mrs. P. Saraswathi",
             "Mr. S. Jegadeesan",

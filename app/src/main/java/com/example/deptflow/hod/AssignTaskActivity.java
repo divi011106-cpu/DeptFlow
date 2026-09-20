@@ -33,7 +33,7 @@ public class AssignTaskActivity extends AppCompatActivity {
             "Dr. R. Vijayalakshmi",
             "Dr. R. Raja Sudharsan",
             "Dr. K. M. Alaaudeen",
-            "Dr. T. Sarnya",
+            "Dr. T. Saranya",
             "Mrs. M. Prabha",
             "Mrs. P. Saraswathi",
             "Mr. S. Jegadeesan",
@@ -253,33 +253,68 @@ public class AssignTaskActivity extends AppCompatActivity {
         try {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-            // Save single task with list of assigned faculty for scalable querying
-            Map<String, Object> taskMap = new HashMap<>();
-            taskMap.put("id", taskId);
-            taskMap.put("title", title);
-            taskMap.put("description", description);
-            taskMap.put("deadline", deadline);
-            taskMap.put("priority", priority);
-            taskMap.put("status", status);
-            taskMap.put("assignedFaculty", new ArrayList<>(selectedList));
-            taskMap.put("assignedFacultyCount", selectedList.size());
-            taskMap.put("timestamp", System.currentTimeMillis());
-
-            // Also keep legacy individual task documents for backward compatibility with Faculty App
-            for (String faculty : selectedList) {
-                Map<String, Object> individualTask = new HashMap<>(taskMap);
-                individualTask.put("faculty", faculty);
-                db.collection("tasks").add(individualTask);
+            // Standardize priority and status
+            String normPriority = priority != null ? priority.trim().toUpperCase() : "HIGH";
+            String normStatus = "PENDING";
+            if (status != null) {
+                String s = status.trim().toUpperCase();
+                if (s.contains("COMPLET")) normStatus = "COMPLETED";
+                else if (s.contains("PROGRESS")) normStatus = "IN_PROGRESS";
             }
 
-            // Also save root task
-            db.collection("tasks").document(taskId).set(taskMap);
+            // Create individual document per faculty for precise direct matching in Faculty Module
+            for (int i = 0; i < selectedList.size(); i++) {
+                String faculty = selectedList.get(i);
+                String docId = (selectedList.size() == 1) ? taskId : taskId + "_" + (i + 1);
+
+                Map<String, Object> docMap = new HashMap<>();
+                docMap.put("taskId", docId);
+                docMap.put("id", docId);
+                docMap.put("groupTaskId", taskId);
+                docMap.put("taskTitle", title);
+                docMap.put("title", title);
+                docMap.put("description", description);
+                docMap.put("deadline", deadline);
+                docMap.put("priority", normPriority);
+                docMap.put("status", normStatus);
+                docMap.put("assignedTo", faculty);
+                docMap.put("faculty", faculty);
+                docMap.put("assignedBy", "HOD (Department Head)");
+                docMap.put("allAssignedFaculty", new ArrayList<>(selectedList));
+                docMap.put("assignedFacultyCount", selectedList.size());
+                docMap.put("timestamp", System.currentTimeMillis());
+
+                db.collection("tasks").document(docId).set(docMap);
+            }
+
+            // Synchronize with local TaskData.tasks bridge so any synchronous in-memory readers have it immediately
+            StringBuilder facSb = new StringBuilder();
+            for (int i = 0; i < selectedList.size(); i++) {
+                facSb.append(selectedList.get(i));
+                if (i < selectedList.size() - 1) facSb.append("\n");
+            }
+            String rawTask = "Title: " + title
+                    + "\nDescription: " + description
+                    + "\nDeadline: " + deadline
+                    + "\nFaculty: " + facSb.toString()
+                    + "\nStatus: " + normStatus
+                    + "\nPriority: " + normPriority;
+
+            if (TaskData.tasks == null) {
+                TaskData.tasks = new ArrayList<>();
+            }
+            TaskData.tasks.add(0, rawTask);
+
+            // Persist locally via TaskRepository
+            try {
+                com.example.deptflow.feature.faculty.repository.TaskRepository.getInstance(this).getHodTasks();
+            } catch (Exception ignored) {}
 
             Toast.makeText(this, "Task Assigned Successfully to " + selectedList.size() + " Faculty Member(s)!", Toast.LENGTH_LONG).show();
             finish();
 
         } catch (Exception e) {
-            Toast.makeText(this, "Task queued locally: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Task queued: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             finish();
         }
     }

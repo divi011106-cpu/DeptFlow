@@ -1,26 +1,34 @@
 package com.example.deptflow.hod;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
 import com.example.deptflow.auth.AuthManager;
 import com.example.deptflow.auth.LoginActivity;
-import com.example.deptflow.communication.NotificationsActivity;
+import com.example.deptflow.feature.faculty.models.Task;
+import com.example.deptflow.feature.faculty.repository.TaskRepository;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.List;
+
 public class HodDashboardActivity extends AppCompatActivity {
 
-    private MaterialCardView cardAssignTask, cardViewTasks, cardFacultyStatus;
-    private MaterialCardView cardReports, cardNotifications, cardLogout;
+    private ImageView ivHodProfile;
+    private TextView tvHodName;
+
+    private MaterialCardView cardAssignTask, cardViewTasks, cardReports, cardProfile, cardLogout;
     private MaterialCardView cardStatTotal, cardStatAssigned, cardStatInProgress, cardStatCompleted;
 
     private TextView tvTotalTasksCount, tvAssignedTasksCount, tvInProgressTasksCount, tvCompletedTasksCount;
@@ -36,15 +44,24 @@ public class HodDashboardActivity extends AppCompatActivity {
 
         initViews();
         setupNavigation();
+        loadProfileHeader();
         setupFirestoreLiveStats();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadProfileHeader();
+    }
+
     private void initViews() {
+        ivHodProfile = findViewById(R.id.ivHodProfile);
+        tvHodName = findViewById(R.id.tvHodName);
+
         cardAssignTask = findViewById(R.id.cardAssignTask);
         cardViewTasks = findViewById(R.id.cardViewTasks);
-        cardFacultyStatus = findViewById(R.id.cardFacultyStatus);
         cardReports = findViewById(R.id.cardReports);
-        cardNotifications = findViewById(R.id.cardNotifications);
+        cardProfile = findViewById(R.id.cardProfile);
         cardLogout = findViewById(R.id.cardLogout);
 
         cardStatTotal = findViewById(R.id.cardStatTotal);
@@ -59,8 +76,30 @@ public class HodDashboardActivity extends AppCompatActivity {
         tvLiveStatusIndicator = findViewById(R.id.tvLiveStatusIndicator);
     }
 
+    private void loadProfileHeader() {
+        SharedPreferences prefs = getSharedPreferences(HodProfileActivity.PREF_HOD_PROFILE, Context.MODE_PRIVATE);
+        String savedName = prefs.getString(HodProfileActivity.KEY_HOD_NAME, "Dr. R. Kavitha");
+        String base64Img = prefs.getString(HodProfileActivity.KEY_HOD_IMAGE_BASE64, "");
+
+        if (tvHodName != null) {
+            tvHodName.setText(savedName);
+        }
+
+        if (ivHodProfile != null && !base64Img.isEmpty()) {
+            Bitmap bitmap = HodProfileActivity.decodeBase64ToBitmap(base64Img);
+            if (bitmap != null) {
+                ivHodProfile.setImageBitmap(bitmap);
+            }
+        }
+    }
+
     private void setupNavigation() {
-        // 1. Assign Task
+        // 1. Profile Picture Click
+        if (ivHodProfile != null) {
+            ivHodProfile.setOnClickListener(v -> openHodProfile());
+        }
+
+        // 2. Assign Task
         if (cardAssignTask != null) {
             cardAssignTask.setOnClickListener(v -> {
                 Intent intent = new Intent(HodDashboardActivity.this, AssignTaskActivity.class);
@@ -68,18 +107,10 @@ public class HodDashboardActivity extends AppCompatActivity {
             });
         }
 
-        // 2. View Tasks
+        // 3. View Tasks
         if (cardViewTasks != null) {
             cardViewTasks.setOnClickListener(v -> {
                 Intent intent = new Intent(HodDashboardActivity.this, ViewTasksActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        // 3. Faculty Status
-        if (cardFacultyStatus != null) {
-            cardFacultyStatus.setOnClickListener(v -> {
-                Intent intent = new Intent(HodDashboardActivity.this, FacultyListActivity.class);
                 startActivity(intent);
             });
         }
@@ -89,12 +120,9 @@ public class HodDashboardActivity extends AppCompatActivity {
             cardReports.setOnClickListener(v -> showReportsSummaryDialog());
         }
 
-        // 5. Notifications
-        if (cardNotifications != null) {
-            cardNotifications.setOnClickListener(v -> {
-                Intent intent = new Intent(HodDashboardActivity.this, NotificationsActivity.class);
-                startActivity(intent);
-            });
+        // 5. HOD Profile Card
+        if (cardProfile != null) {
+            cardProfile.setOnClickListener(v -> openHodProfile());
         }
 
         // 6. Logout
@@ -117,6 +145,11 @@ public class HodDashboardActivity extends AppCompatActivity {
         }
     }
 
+    private void openHodProfile() {
+        Intent intent = new Intent(HodDashboardActivity.this, HodProfileActivity.class);
+        startActivity(intent);
+    }
+
     private void navigateToTasksWithFilter(String status) {
         Intent intent = new Intent(HodDashboardActivity.this, ViewTasksActivity.class);
         intent.putExtra("filter_status", status);
@@ -133,10 +166,11 @@ public class HodDashboardActivity extends AppCompatActivity {
                                 tvLiveStatusIndicator.setText("• Offline Mode");
                                 tvLiveStatusIndicator.setTextColor(getColor(R.color.text_secondary));
                             }
+                            updateFallbackStats();
                             return;
                         }
 
-                        if (snapshots != null) {
+                        if (snapshots != null && !snapshots.isEmpty()) {
                             int total = snapshots.size();
                             int assigned = 0;
                             int inProgress = 0;
@@ -144,9 +178,12 @@ public class HodDashboardActivity extends AppCompatActivity {
 
                             for (DocumentSnapshot doc : snapshots.getDocuments()) {
                                 String status = doc.getString("status");
-                                if ("Completed".equalsIgnoreCase(status)) {
+                                if (status == null) status = "";
+                                String s = status.trim().toUpperCase();
+
+                                if (s.contains("COMPLET")) {
                                     completed++;
-                                } else if ("In Progress".equalsIgnoreCase(status)) {
+                                } else if (s.contains("PROGRESS")) {
                                     inProgress++;
                                 } else {
                                     assigned++;
@@ -162,13 +199,38 @@ public class HodDashboardActivity extends AppCompatActivity {
                                 tvLiveStatusIndicator.setText("• Live Firestore");
                                 tvLiveStatusIndicator.setTextColor(getColor(R.color.status_completed));
                             }
+                        } else {
+                            updateFallbackStats();
                         }
                     });
         } catch (Exception e) {
             if (tvLiveStatusIndicator != null) {
                 tvLiveStatusIndicator.setText("• Local Cache");
             }
+            updateFallbackStats();
         }
+    }
+
+    private void updateFallbackStats() {
+        try {
+            List<Task> tasks = TaskRepository.getInstance(this).getHodTasks();
+            int total = tasks.size();
+            int assigned = 0;
+            int inProgress = 0;
+            int completed = 0;
+
+            for (Task t : tasks) {
+                String s = t.getStatus() != null ? t.getStatus().toUpperCase() : "";
+                if (s.contains("COMPLET")) completed++;
+                else if (s.contains("PROGRESS")) inProgress++;
+                else assigned++;
+            }
+
+            if (tvTotalTasksCount != null) tvTotalTasksCount.setText(String.valueOf(total));
+            if (tvAssignedTasksCount != null) tvAssignedTasksCount.setText(String.valueOf(assigned));
+            if (tvInProgressTasksCount != null) tvInProgressTasksCount.setText(String.valueOf(inProgress));
+            if (tvCompletedTasksCount != null) tvCompletedTasksCount.setText(String.valueOf(completed));
+        } catch (Exception ignored) {}
     }
 
     private void showReportsSummaryDialog() {
