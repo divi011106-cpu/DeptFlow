@@ -144,7 +144,7 @@ public class ViewTasksActivity extends AppCompatActivity implements HodTaskAdapt
 
         try {
             firestore = FirebaseFirestore.getInstance();
-            tasksListener = firestore.collection("tasks")
+            tasksListener = firestore.collection("task_assignments")
                     .addSnapshotListener((snapshots, error) -> {
                         if (progressBarTasks != null) progressBarTasks.setVisibility(View.GONE);
 
@@ -203,7 +203,8 @@ public class ViewTasksActivity extends AppCompatActivity implements HodTaskAdapt
         String assignedTo = doc.getString("assignedTo");
         if (assignedTo == null || assignedTo.isEmpty()) assignedTo = doc.getString("faculty");
         if (assignedTo == null || assignedTo.isEmpty()) {
-            Object obj = doc.get("assignedFaculty");
+            Object obj = doc.get("allAssignedFaculty");
+            if (obj == null) obj = doc.get("assignedFaculty");
             if (obj instanceof List) {
                 List<?> list = (List<?>) obj;
                 StringBuilder sb = new StringBuilder();
@@ -218,7 +219,7 @@ public class ViewTasksActivity extends AppCompatActivity implements HodTaskAdapt
         }
 
         String assignedBy = doc.getString("assignedBy");
-        if (assignedBy == null || assignedBy.isEmpty()) assignedBy = "HOD";
+        if (assignedBy == null || assignedBy.isEmpty()) assignedBy = "HOD (Department Head)";
 
         String deadline = doc.getString("deadline");
         if (deadline == null || deadline.isEmpty()) deadline = "No Deadline";

@@ -159,7 +159,7 @@ public class HodDashboardActivity extends AppCompatActivity {
     private void setupFirestoreLiveStats() {
         try {
             firestore = FirebaseFirestore.getInstance();
-            tasksListener = firestore.collection("tasks")
+            tasksListener = firestore.collection("task_assignments")
                     .addSnapshotListener((snapshots, error) -> {
                         if (error != null) {
                             if (tvLiveStatusIndicator != null) {

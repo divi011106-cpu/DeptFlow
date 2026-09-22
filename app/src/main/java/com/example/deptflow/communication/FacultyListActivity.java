@@ -96,10 +96,13 @@ public class FacultyListActivity extends AppCompatActivity {
 
                         String name = document.getString("name");
 
-                        // First try the userID field
-                        String facultyId = document.getString("userID");
+                        // First try userId then userID
+                        String facultyId = document.getString("userId");
+                        if (facultyId == null || facultyId.trim().isEmpty()) {
+                            facultyId = document.getString("userID");
+                        }
 
-                        // If userID is empty, use the Firestore document ID
+                        // If still empty, use the Firestore document ID
                         if (facultyId == null || facultyId.trim().isEmpty()) {
                             facultyId = document.getId();
                         }

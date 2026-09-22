@@ -71,7 +71,7 @@ public class TaskRepository {
     private void initFirestoreListener() {
         try {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
-            firestoreListener = db.collection("tasks").addSnapshotListener((snapshots, error) -> {
+            firestoreListener = db.collection("task_assignments").addSnapshotListener((snapshots, error) -> {
                 if (error != null) {
                     Log.w(TAG, "initFirestoreListener error: " + error.getMessage());
                     return;
@@ -85,7 +85,7 @@ public class TaskRepository {
                                 firestoreTasks.add(task);
                             }
                         }
-                        Log.d(TAG, "initFirestoreListener: loaded " + firestoreTasks.size() + " tasks from Firestore");
+                        Log.d(TAG, "initFirestoreListener: loaded " + firestoreTasks.size() + " tasks from Firestore task_assignments");
                     }
                     notifyChangeListeners();
                 }
@@ -137,7 +137,8 @@ public class TaskRepository {
         String assignedTo = doc.getString("assignedTo");
         if (assignedTo == null || assignedTo.isEmpty()) assignedTo = doc.getString("faculty");
         if (assignedTo == null || assignedTo.isEmpty()) {
-            Object obj = doc.get("assignedFaculty");
+            Object obj = doc.get("allAssignedFaculty");
+            if (obj == null) obj = doc.get("assignedFaculty");
             if (obj instanceof List) {
                 List<?> list = (List<?>) obj;
                 StringBuilder sb = new StringBuilder();
@@ -152,7 +153,7 @@ public class TaskRepository {
         }
 
         String assignedBy = doc.getString("assignedBy");
-        if (assignedBy == null || assignedBy.isEmpty()) assignedBy = "HOD";
+        if (assignedBy == null || assignedBy.isEmpty()) assignedBy = "HOD (Department Head)";
 
         String deadline = doc.getString("deadline");
         if (deadline == null || deadline.isEmpty()) deadline = "No Deadline";
@@ -338,40 +339,35 @@ public class TaskRepository {
      * Also persists them to SharedPreferences so they survive the next restart.
      */
     public synchronized List<Task> getHodTasks() {
+        List<Task> hodTasks = new ArrayList<>();
+        if (!firestoreTasks.isEmpty()) {
+            hodTasks.addAll(firestoreTasks);
+        }
+
         // First try to restore from prefs if TaskData.tasks is empty
         if (TaskData.tasks == null || TaskData.tasks.isEmpty()) {
             restoreHodTasksFromPrefs();
         }
 
-        List<Task> hodTasks = new ArrayList<>();
-        if (TaskData.tasks == null) {
-            Log.d(TAG, "getHodTasks: TaskData.tasks is null");
-            return hodTasks;
-        }
+        if (TaskData.tasks != null && !TaskData.tasks.isEmpty()) {
+            Log.d(TAG, "getHodTasks: TaskData.tasks.size() = " + TaskData.tasks.size());
 
-        Log.d(TAG, "getHodTasks: TaskData.tasks.size() = " + TaskData.tasks.size());
-
-        for (int i = 0; i < TaskData.tasks.size(); i++) {
-            String raw = TaskData.tasks.get(i);
-            if (VERBOSE_DEBUG) {
-                Log.d(TAG, "RAW HOD TASK[" + i + "] = [" + raw + "]");
-            }
-            Task task = parseHodTask(raw, i);
-            if (task != null) {
-                if (VERBOSE_DEBUG) {
-                    Log.d(TAG, "  Parsed taskId    = " + task.getTaskId());
-                    Log.d(TAG, "  Parsed title     = " + task.getTaskTitle());
-                    Log.d(TAG, "  Parsed faculty   = [" + task.getAssignedTo() + "]");
-                    Log.d(TAG, "  Parsed deadline  = " + task.getDeadline());
-                    Log.d(TAG, "  Parsed status    = " + task.getStatus());
+            for (int i = 0; i < TaskData.tasks.size(); i++) {
+                String raw = TaskData.tasks.get(i);
+                Task task = parseHodTask(raw, i);
+                if (task != null) {
+                    boolean exists = false;
+                    for (Task ht : hodTasks) {
+                        if (ht.getTaskId() != null && ht.getTaskId().equalsIgnoreCase(task.getTaskId())) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        hodTasks.add(task);
+                    }
                 }
-                hodTasks.add(task);
             }
-        }
-
-        // Persist after reading so data survives restarts
-        if (!hodTasks.isEmpty()) {
-            persistHodTasksToPrefs();
         }
 
         return hodTasks;
@@ -650,8 +646,17 @@ public class TaskRepository {
         // 2. Persist update to Cloud Firestore
         try {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
-            db.collection("tasks").document(taskId).update("status", status)
-                    .addOnFailureListener(e -> Log.e(TAG, "Firestore status update failed: " + e.getMessage()));
+            db.collection("task_assignments").document(taskId).update("status", status)
+                    .addOnSuccessListener(aVoid -> Log.d(TAG, "Firestore status updated successfully for: " + taskId))
+                    .addOnFailureListener(e -> {
+                        Log.w(TAG, "Direct doc update failed, trying query update for " + taskId + ": " + e.getMessage());
+                        db.collection("task_assignments").whereEqualTo("taskId", taskId).get()
+                                .addOnSuccessListener(querySnapshot -> {
+                                    for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
+                                        doc.getReference().update("status", status);
+                                    }
+                                });
+                    });
             updated = true;
         } catch (Exception e) {
             Log.e(TAG, "Failed to update status in Firestore: " + e.getMessage());

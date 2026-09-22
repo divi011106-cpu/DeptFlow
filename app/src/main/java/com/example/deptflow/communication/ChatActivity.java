@@ -143,7 +143,10 @@ public class ChatActivity extends AppCompatActivity {
                     DocumentSnapshot userDoc =
                             snapshot.getDocuments().get(0);
 
-                    String userId = userDoc.getString("userID");
+                    String userId = userDoc.getString("userId");
+                    if (userId == null || userId.trim().isEmpty()) {
+                        userId = userDoc.getString("userID");
+                    }
                     if (userId == null || userId.trim().isEmpty()) {
                         userId = userDoc.getId();
                     }
