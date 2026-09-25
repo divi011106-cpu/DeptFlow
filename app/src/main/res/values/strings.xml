@@ -72,6 +72,8 @@
     <string name="label_role">Designation / Role</string>
     <string name="label_user_id">Faculty ID</string>
     <string name="btn_edit_profile">Edit Profile</string>
+    <string name="btn_save_changes">Save Changes</string>
+    <string name="profile_update_success">Profile updated successfully!</string>
     <string name="btn_back">Back</string>
     <string name="profile_edit_dialog_title">Edit Profile</string>
     <string name="profile_edit_msg">Profile editing is managed by Department Administration.</string>
