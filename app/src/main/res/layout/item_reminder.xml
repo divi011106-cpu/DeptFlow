@@ -6,12 +6,12 @@
     android:id="@+id/cardReminder"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="16dp"
-    android:layout_marginVertical="7dp"
+    android:layout_marginHorizontal="14dp"
+    android:layout_marginVertical="6dp"
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="@color/surface_card"
-    app:cardCornerRadius="16dp"
+    app:cardCornerRadius="14dp"
     app:cardElevation="2dp"
     app:strokeColor="@color/card_stroke"
     app:strokeWidth="1dp"
@@ -21,75 +21,92 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="14dp">
 
-        <!-- Top Row: Countdown Badge, Priority Pill, Status -->
+        <!-- Top Header: Status Badges, Overdue Tag, and Actions -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="10dp">
+            android:layout_marginBottom="8dp">
 
-            <!-- Countdown Pill (Urgency) -->
-            <TextView
-                android:id="@+id/tvCountdownBadge"
+            <!-- Completed Checkbox / Toggle -->
+            <CheckBox
+                android:id="@+id/cbReminderCompleted"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:background="@drawable/bg_priority_high"
-                android:textColor="@color/priority_high_text"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                tools:text="⚠️ OVERDUE BY 2 DAYS" />
+                android:buttonTint="@color/primary"
+                android:layout_marginEnd="6dp" />
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <!-- Priority -->
-            <TextView
-                android:id="@+id/tvReminderPriority"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:background="@drawable/bg_stat_pending"
-                android:textColor="@color/stat_pending_text"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                tools:text="HIGH" />
-
-            <!-- Status -->
+            <!-- Status Badge -->
             <TextView
                 android:id="@+id/tvReminderStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
-                android:background="@drawable/bg_status_assigned"
-                android:textColor="@color/status_assigned"
-                android:textSize="10sp"
+                android:background="@drawable/bg_stat_inprogress"
+                android:textColor="@color/primary"
+                android:textSize="11sp"
                 android:textStyle="bold"
-                tools:text="ASSIGNED" />
+                tools:text="PENDING" />
+
+            <!-- Overdue Badge (if past scheduled time) -->
+            <TextView
+                android:id="@+id/tvCountdownBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:background="@drawable/bg_priority_high"
+                android:textColor="@color/priority_high_text"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="⚠️ OVERDUE" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Edit Button -->
+            <ImageButton
+                android:id="@+id/btnEditReminder"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_edit"
+                app:tint="@color/text_secondary"
+                android:contentDescription="Edit Reminder"
+                android:layout_marginEnd="4dp" />
+
+            <!-- Delete Button -->
+            <ImageButton
+                android:id="@+id/btnDeleteReminder"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_delete"
+                app:tint="#DC2626"
+                android:contentDescription="Delete Reminder" />
 
         </LinearLayout>
 
-        <!-- Task Title -->
+        <!-- Reminder Title -->
         <TextView
             android:id="@+id/tvReminderTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/text_primary"
-            android:textSize="17sp"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:maxLines="2"
             android:ellipsize="end"
-            android:layout_marginBottom="6dp"
-            tools:text="Attendance Report &amp; Mid-term Assessment" />
+            android:layout_marginBottom="4dp"
+            tools:text="Prepare Midterm Question Paper" />
 
         <!-- Description Snippet -->
         <TextView
@@ -98,19 +115,19 @@
             android:layout_height="wrap_content"
             android:textColor="@color/text_secondary"
             android:textSize="13sp"
-            android:maxLines="2"
+            android:maxLines="3"
             android:ellipsize="end"
             android:lineSpacingExtra="2dp"
-            android:layout_marginBottom="12dp"
-            tools:text="Compile all 4th year student attendance rosters and list detained students before HOD review." />
+            android:layout_marginBottom="10dp"
+            tools:text="Include 5 objective questions and 3 problem solving questions from Unit 3." />
 
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:background="@color/divider"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="10dp" />
 
-        <!-- Bottom Row: Deadline Date & Discuss Shortcut Button -->
+        <!-- Bottom Row: Scheduled Time Pill & Alarm Icon -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -122,7 +139,7 @@
                 android:layout_height="16dp"
                 android:src="@drawable/ic_calendar"
                 android:layout_marginEnd="6dp"
-                app:tint="@color/text_secondary"
+                app:tint="@color/primary"
                 android:contentDescription="@null" />
 
             <TextView
@@ -130,41 +147,22 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/text_primary"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                tools:text="Deadline: 28 Sep 2026" />
+                tools:text="⏰ Scheduled: Tomorrow at 10:00 AM" />
 
-            <!-- Discuss Shortcut Action -->
-            <LinearLayout
-                android:id="@+id/btnDiscussReminder"
+            <TextView
+                android:id="@+id/tvReminderPriority"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/bg_stat_inprogress"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="7dp"
-                android:clickable="true"
-                android:focusable="true">
+                android:visibility="gone" />
 
-                <ImageView
-                    android:layout_width="14dp"
-                    android:layout_height="14dp"
-                    android:src="@drawable/ic_chat"
-                    android:layout_marginEnd="6dp"
-                    app:tint="@color/primary"
-                    android:contentDescription="@null" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Discuss"
-                    android:textColor="@color/primary"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-            </LinearLayout>
+            <View
+                android:id="@+id/btnDiscussReminder"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
         </LinearLayout>
 

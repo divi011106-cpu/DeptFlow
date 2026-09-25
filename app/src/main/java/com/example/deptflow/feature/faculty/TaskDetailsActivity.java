@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat;
 import com.example.deptflow.R;
 import com.example.deptflow.feature.faculty.models.Task;
 import com.example.deptflow.feature.faculty.repository.TaskRepository;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.Arrays;
 import java.util.List;
@@ -84,20 +85,66 @@ public class TaskDetailsActivity extends AppCompatActivity {
 
     private void loadTaskData() {
         currentTask = taskRepository.getTaskById(taskId);
-        if (currentTask == null) {
-            Toast.makeText(this, "Task not found", Toast.LENGTH_SHORT).show();
-            finish();
+        if (currentTask != null) {
+            populateTaskData(currentTask);
             return;
         }
 
-        tvTaskId.setText(currentTask.getTaskId());
-        tvTitle.setText(currentTask.getTaskTitle());
-        tvDescription.setText(currentTask.getDescription());
-        tvAssignedBy.setText(currentTask.getAssignedBy());
-        tvDeadline.setText(currentTask.getDeadline());
+        // Live Firestore query fallback if cache is warming up
+        try {
+            FirebaseFirestore db = FirebaseFirestore.getInstance();
+            db.collection("task_assignments").document(taskId).get()
+                    .addOnSuccessListener(doc -> {
+                        if (doc != null && doc.exists()) {
+                            currentTask = taskRepository.taskFromDocument(doc);
+                            if (currentTask != null) {
+                                populateTaskData(currentTask);
+                                setupSpinner();
+                                return;
+                            }
+                        }
+                        // Query by groupTaskId or taskId fields
+                        db.collection("task_assignments")
+                                .whereEqualTo("groupTaskId", taskId)
+                                .limit(1)
+                                .get()
+                                .addOnSuccessListener(querySnap -> {
+                                    if (querySnap != null && !querySnap.isEmpty()) {
+                                        currentTask = taskRepository.taskFromDocument(querySnap.getDocuments().get(0));
+                                        if (currentTask != null) {
+                                            populateTaskData(currentTask);
+                                            setupSpinner();
+                                            return;
+                                        }
+                                    }
+                                    Toast.makeText(TaskDetailsActivity.this, "Task not found (ID: " + taskId + ")", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Toast.makeText(TaskDetailsActivity.this, "Task not found (ID: " + taskId + ")", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                });
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(TaskDetailsActivity.this, "Task not found: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        finish();
+                    });
+        } catch (Exception e) {
+            Toast.makeText(this, "Task not found (ID: " + taskId + ")", Toast.LENGTH_SHORT).show();
+            finish();
+        }
+    }
 
-        updateStatusBadge(currentTask.getStatus());
-        updatePriorityBadge(currentTask.getPriority());
+    private void populateTaskData(Task task) {
+        if (task == null) return;
+        tvTaskId.setText(task.getTaskId());
+        tvTitle.setText(task.getTaskTitle());
+        tvDescription.setText(task.getDescription());
+        tvAssignedBy.setText(task.getAssignedBy());
+        tvDeadline.setText(task.getDeadline());
+
+        updateStatusBadge(task.getStatus());
+        updatePriorityBadge(task.getPriority());
     }
 
     private void updateStatusBadge(String status) {

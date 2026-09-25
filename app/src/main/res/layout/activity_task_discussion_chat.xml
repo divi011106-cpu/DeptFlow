@@ -99,7 +99,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="No Messages Yet"
+                android:text="No discussion yet"
                 android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold"
@@ -108,7 +108,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Be the first to share notes or questions on this task."
+                android:text="Start the discussion for this task."
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp"
                 android:gravity="center" />

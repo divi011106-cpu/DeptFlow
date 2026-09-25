@@ -12,18 +12,22 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.deptflow.R;
 import com.example.deptflow.communication.models.AppNotification;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Adapter for rendering notification cards with unread styling and action shortcuts.
+ * Modern interactive Notification Adapter.
+ * Supports tap actions, dedicated action buttons (Open Chat / View Task), Mark Read, and Dismiss.
  */
 public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder> {
 
     public interface OnNotificationClickListener {
         void onNotificationClick(AppNotification notification);
+        void onNotificationMarkRead(AppNotification notification);
+        void onNotificationDismiss(AppNotification notification);
     }
 
     private final Context context;
@@ -47,7 +51,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
     public void onBindViewHolder(@NonNull NotificationViewHolder holder, int position) {
         AppNotification notification = notificationList.get(position);
 
-        // Subtitle (Task title or announcement topic)
+        // Subtitle (Task title or sender subject)
         holder.tvNotificationSubtitle.setText(notification.getSubtitle());
 
         // Message snippet
@@ -62,18 +66,28 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         // Timestamp
         holder.tvNotificationTime.setText(notification.getFormattedDate());
 
-        // Type badge
-        if (AppNotification.TYPE_ANNOUNCEMENT.equalsIgnoreCase(notification.getType())) {
+        // Type badge & Action button text
+        String type = notification.getType();
+        if (AppNotification.TYPE_CHAT.equalsIgnoreCase(type)) {
+            holder.tvNotificationType.setText("💬 FACULTY CHAT");
+            holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_inprogress);
+            holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.stat_inprogress_text));
+            holder.tvNotificationDeadline.setVisibility(View.GONE);
+            holder.tvNotificationPriority.setVisibility(View.GONE);
+            holder.btnPrimaryAction.setText("Open Chat");
+            holder.btnPrimaryAction.setIcon(null);
+        } else if (AppNotification.TYPE_ANNOUNCEMENT.equalsIgnoreCase(type)) {
             holder.tvNotificationType.setText("🔔 ANNOUNCEMENT");
             holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_pending);
             holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.stat_pending_text));
             holder.tvNotificationDeadline.setVisibility(View.GONE);
             holder.tvNotificationPriority.setVisibility(View.GONE);
-            holder.tvActionHint.setText("View Announcement ➔");
+            holder.btnPrimaryAction.setText("View Details");
         } else {
-            holder.tvNotificationType.setText("📢 NEW TASK ASSIGNED");
+            holder.tvNotificationType.setText("📢 TASK ASSIGNMENT");
             holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_total);
             holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.primary));
+            holder.btnPrimaryAction.setText("View Task");
 
             // Deadline
             String deadline = notification.getDeadline();
@@ -102,31 +116,48 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             } else {
                 holder.tvNotificationPriority.setVisibility(View.GONE);
             }
-
-            holder.tvActionHint.setText("Discuss ➔");
         }
 
         // Unread styling
         if (!notification.isRead()) {
             holder.viewUnreadDot.setVisibility(View.VISIBLE);
             holder.cardNotification.setStrokeColor(ContextCompat.getColor(context, R.color.primary_light));
-            holder.cardNotification.setStrokeWidth(3);
+            holder.cardNotification.setStrokeWidth(2);
             holder.cardNotification.setCardBackgroundColor(ContextCompat.getColor(context, R.color.surface));
+            holder.btnMarkRead.setVisibility(View.VISIBLE);
         } else {
             holder.viewUnreadDot.setVisibility(View.GONE);
             holder.cardNotification.setStrokeColor(ContextCompat.getColor(context, R.color.card_stroke));
             holder.cardNotification.setStrokeWidth(1);
             holder.cardNotification.setCardBackgroundColor(ContextCompat.getColor(context, R.color.background));
+            holder.btnMarkRead.setVisibility(View.GONE);
         }
 
-        // Click handler
+        // Card tap action
         holder.itemView.setOnClickListener(v -> {
-            if (!notification.isRead()) {
-                notification.setRead(true);
-                notifyItemChanged(holder.getBindingAdapterPosition());
-            }
             if (listener != null) {
                 listener.onNotificationClick(notification);
+            }
+        });
+
+        // Button action: Open Chat / View Task
+        holder.btnPrimaryAction.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onNotificationClick(notification);
+            }
+        });
+
+        // Button action: Mark Read
+        holder.btnMarkRead.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onNotificationMarkRead(notification);
+            }
+        });
+
+        // Button action: Dismiss
+        holder.btnDismiss.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onNotificationDismiss(notification);
             }
         });
     }
@@ -160,7 +191,9 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         TextView tvNotificationMessage;
         TextView tvNotificationPriority;
         TextView tvNotificationDeadline;
-        TextView tvActionHint;
+        MaterialButton btnPrimaryAction;
+        MaterialButton btnMarkRead;
+        MaterialButton btnDismiss;
 
         NotificationViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -172,7 +205,9 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             tvNotificationMessage = itemView.findViewById(R.id.tvNotificationMessage);
             tvNotificationPriority = itemView.findViewById(R.id.tvNotificationPriority);
             tvNotificationDeadline = itemView.findViewById(R.id.tvNotificationDeadline);
-            tvActionHint = itemView.findViewById(R.id.tvActionHint);
+            btnPrimaryAction = itemView.findViewById(R.id.btnPrimaryAction);
+            btnMarkRead = itemView.findViewById(R.id.btnMarkRead);
+            btnDismiss = itemView.findViewById(R.id.btnDismiss);
         }
     }
 }

@@ -6,7 +6,7 @@
     android:id="@+id/cardNotification"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="16dp"
+    android:layout_marginHorizontal="14dp"
     android:layout_marginVertical="6dp"
     android:clickable="true"
     android:focusable="true"
@@ -23,7 +23,7 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Top Row: Type Pill, Unread Dot, Timestamp -->
+        <!-- Top Row: Type Pill, Priority, Unread Dot, Timestamp -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -43,6 +43,20 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 tools:text="📢 NEW TASK" />
+
+            <!-- Priority -->
+            <TextView
+                android:id="@+id/tvNotificationPriority"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:background="@drawable/bg_priority_high"
+                android:textColor="@color/priority_high_text"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:layout_marginStart="6dp"
+                tools:text="HIGH" />
 
             <View
                 android:layout_width="0dp"
@@ -75,7 +89,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/text_primary"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:layout_marginBottom="4dp"
             tools:text="Result Analysis &amp; Department Performance" />
@@ -90,8 +104,21 @@
             android:maxLines="2"
             android:ellipsize="end"
             android:lineSpacingExtra="2dp"
-            android:layout_marginBottom="10dp"
+            android:layout_marginBottom="8dp"
             tools:text="Please prepare semester pass percentage metrics and subject-wise failure reports for tomorrow's meeting." />
+
+        <!-- Deadline row if applicable -->
+        <TextView
+            android:id="@+id/tvNotificationDeadline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:drawableStart="@drawable/ic_calendar"
+            android:drawablePadding="6dp"
+            android:drawableTint="@color/text_secondary"
+            android:layout_marginBottom="10dp"
+            tools:text="Due: 28 Sep 2026" />
 
         <View
             android:layout_width="match_parent"
@@ -99,46 +126,51 @@
             android:background="@color/divider"
             android:layout_marginBottom="10dp" />
 
-        <!-- Bottom Row: Priority, Deadline, Tap Action -->
+        <!-- Interactive Action Buttons Row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <!-- Priority -->
-            <TextView
-                android:id="@+id/tvNotificationPriority"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMarkRead"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp"
-                android:background="@drawable/bg_priority_high"
-                android:textColor="@color/priority_high_text"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:layout_marginEnd="8dp"
-                tools:text="HIGH" />
-
-            <!-- Deadline -->
-            <TextView
-                android:id="@+id/tvNotificationDeadline"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:text="Mark Read"
                 android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                tools:text="Due: 28 Sep 2026" />
+                android:textSize="11sp"
+                android:paddingHorizontal="8dp"
+                android:layout_marginEnd="4dp" />
 
-            <!-- Tap action hint -->
-            <TextView
-                android:id="@+id/tvActionHint"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDismiss"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Tap to view ➔"
-                android:textColor="@color/primary"
+                android:layout_height="36dp"
+                android:text="Dismiss"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:paddingHorizontal="8dp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPrimaryAction"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="Open Chat"
+                android:textColor="@color/text_white"
                 android:textSize="12sp"
-                android:textStyle="bold" />
+                android:textAllCaps="false"
+                android:paddingHorizontal="14dp"
+                app:cornerRadius="18dp"
+                app:backgroundTint="@color/primary"
+                tools:text="Open Chat" />
 
         </LinearLayout>
 

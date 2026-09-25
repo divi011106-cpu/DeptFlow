@@ -16,6 +16,7 @@ import com.example.deptflow.R;
 import com.example.deptflow.auth.AuthManager;
 import com.example.deptflow.communication.adapters.DiscussionChatAdapter;
 import com.example.deptflow.communication.models.DiscussionMessage;
+import com.example.deptflow.communication.models.FacultyDirectory;
 import com.example.deptflow.feature.faculty.models.FacultyUser;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
@@ -32,9 +33,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Modern Task Discussion Chat Activity.
- * Provides a dedicated, real-time collaboration channel for all faculty members
- * and the HOD assigned to a specific task.
+ * TaskDiscussionChatActivity — Real-time team collaboration channel
+ * for all faculty members and HOD assigned to a specific task.
  */
 public class TaskDiscussionChatActivity extends AppCompatActivity {
 
@@ -60,9 +60,13 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
     private String taskDeadline = "";
     private String discussionDocId = "";
 
+    private String currentUid = "";
     private String currentUserId = "";
+    private String currentCanonicalId = "";
     private String currentUserName = "Faculty";
     private String currentUserRole = "FACULTY";
+
+    private boolean isSending = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,7 +100,6 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
         taskTitle = getIntent().getStringExtra("EXTRA_TASK_TITLE");
         taskDeadline = getIntent().getStringExtra("EXTRA_TASK_DEADLINE");
 
-        // Fallback compatibility with older intents passing only "taskName"
         if (taskTitle == null || taskTitle.trim().isEmpty()) {
             taskTitle = getIntent().getStringExtra("taskName");
         }
@@ -108,7 +111,6 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
             taskId = taskTitle;
         }
 
-        // Use taskId as document identifier to prevent name collisions
         discussionDocId = taskId;
 
         tvTaskTitle.setText(taskTitle);
@@ -126,7 +128,7 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
 
         FirebaseUser firebaseUser = firebaseAuth.getCurrentUser();
         if (firebaseUser != null) {
-            currentUserId = firebaseUser.getUid();
+            currentUid = firebaseUser.getUid();
             if (firebaseUser.getDisplayName() != null && !firebaseUser.getDisplayName().trim().isEmpty()) {
                 currentUserName = firebaseUser.getDisplayName().trim();
             }
@@ -134,19 +136,49 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
 
         FacultyUser cachedUser = AuthManager.getInstance(this).getCurrentUser();
         if (cachedUser != null) {
+            if (cachedUser.getUserId() != null && !cachedUser.getUserId().trim().isEmpty()) {
+                currentUserId = cachedUser.getUserId().trim();
+            }
             if (cachedUser.getName() != null && !cachedUser.getName().trim().isEmpty()) {
                 currentUserName = cachedUser.getName().trim();
             }
             if (cachedUser.getRole() != null && !cachedUser.getRole().trim().isEmpty()) {
                 currentUserRole = cachedUser.getRole().trim().toUpperCase();
             }
+
+            FacultyUser canonical = FacultyDirectory.resolveCanonicalFaculty(cachedUser);
+            if (canonical != null) {
+                currentCanonicalId = canonical.getUserId();
+                currentUserName = canonical.getName();
+            }
         }
 
-        Log.d(TAG, "Current user loaded: UID=" + currentUserId + ", Name=" + currentUserName + ", Role=" + currentUserRole);
+        if (currentCanonicalId.isEmpty() && !currentNameIsEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserName);
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentUserId.isEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserId);
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentUid.isEmpty()) {
+            currentCanonicalId = currentUid;
+        }
+
+        Log.d(TAG, "Current user loaded: UID=" + currentUid
+                + ", CanonicalId=" + currentCanonicalId
+                + ", Name=" + currentUserName
+                + ", Role=" + currentUserRole);
+    }
+
+    private boolean currentNameIsEmpty() {
+        return currentUserName == null || currentUserName.trim().isEmpty();
     }
 
     private void setupRecyclerView() {
-        adapter = new DiscussionChatAdapter(this, messageList, currentUserId);
+        // Pass the primary ID used for message matching
+        String activeUserId = !currentCanonicalId.isEmpty() ? currentCanonicalId : (!currentUserId.isEmpty() ? currentUserId : currentUid);
+        adapter = new DiscussionChatAdapter(this, messageList, activeUserId);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         layoutManager.setStackFromEnd(true);
         rvDiscussionMessages.setLayoutManager(layoutManager);
@@ -154,63 +186,74 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
     }
 
     private void listenForDiscussionMessages() {
+        if (discussionDocId.isEmpty()) return;
+
+        if (messageListener != null) {
+            messageListener.remove();
+        }
+
         messageListener = db.collection("task_discussions")
                 .document(discussionDocId)
                 .collection("messages")
                 .orderBy("timestamp", Query.Direction.ASCENDING)
                 .addSnapshotListener((snapshots, error) -> {
+                    if (isFinishing() || isDestroyed()) return;
+
                     if (error != null) {
-                        Log.e(TAG, "Error listening for discussion messages: " + error.getMessage(), error);
+                        String code = "UNKNOWN";
+                        if (error instanceof com.google.firebase.firestore.FirebaseFirestoreException) {
+                            code = error.getCode().name();
+                        }
+                        Log.e(TAG, "Operation failed. code=" + code + " message=" + error.getMessage(), error);
                         return;
                     }
 
-                    if (snapshots == null || snapshots.isEmpty()) {
-                        messageList.clear();
-                        adapter.setMessages(messageList);
-                        layoutEmptyChat.setVisibility(View.VISIBLE);
-                        return;
-                    }
-
-                    layoutEmptyChat.setVisibility(View.GONE);
-                    List<DiscussionMessage> freshMessages = new ArrayList<>();
-
-                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                        String messageId = doc.getId();
-                        String senderId = doc.getString("senderId");
-                        String senderName = doc.getString("senderName");
-                        String sender = doc.getString("sender");
-                        String senderRole = doc.getString("senderRole");
-                        String messageText = doc.getString("message");
-
-                        if (senderName == null || senderName.trim().isEmpty()) {
-                            senderName = sender != null ? sender : "Faculty";
-                        }
-                        if (senderRole == null || senderRole.trim().isEmpty()) {
-                            senderRole = "Faculty";
-                        }
-
-                        long ts = 0L;
-                        Object tsObj = doc.get("timestamp");
-                        if (tsObj instanceof Timestamp) {
-                            ts = ((Timestamp) tsObj).toDate().getTime();
-                        } else if (tsObj instanceof Long) {
-                            ts = (Long) tsObj;
-                        } else if (tsObj instanceof Double) {
-                            ts = ((Double) tsObj).longValue();
-                        }
-
-                        if (messageText != null && !messageText.trim().isEmpty()) {
-                            freshMessages.add(new DiscussionMessage(
-                                    messageId, senderId, senderName, senderRole, messageText, ts
-                            ));
-                        }
-                    }
+                    if (snapshots == null) return;
 
                     messageList.clear();
-                    messageList.addAll(freshMessages);
+
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        String msgId = doc.getId();
+                        String senderId = doc.getString("senderId");
+                        String senderName = doc.getString("senderName");
+                        String senderRole = doc.getString("senderRole");
+                        String text = doc.getString("message");
+                        long timestamp = 0L;
+
+                        Object tsObj = doc.get("timestamp");
+                        if (tsObj instanceof Timestamp) {
+                            timestamp = ((Timestamp) tsObj).toDate().getTime();
+                        } else if (tsObj instanceof Number) {
+                            timestamp = ((Number) tsObj).longValue();
+                        } else if (tsObj instanceof java.util.Date) {
+                            timestamp = ((java.util.Date) tsObj).getTime();
+                        } else if (tsObj instanceof String) {
+                            try {
+                                timestamp = Long.parseLong(((String) tsObj).trim());
+                            } catch (Exception ignored) {}
+                        }
+
+                        if (text != null && !text.trim().isEmpty()) {
+                            DiscussionMessage msg = new DiscussionMessage(
+                                     msgId,
+                                     senderId != null ? senderId : "",
+                                     senderName != null ? senderName : "Faculty",
+                                     senderRole != null ? senderRole : "Faculty",
+                                     text,
+                                     timestamp
+                            );
+                            messageList.add(msg);
+                        }
+                    }
+
                     adapter.setMessages(messageList);
 
-                    if (!messageList.isEmpty()) {
+                    if (messageList.isEmpty()) {
+                        layoutEmptyChat.setVisibility(View.VISIBLE);
+                        rvDiscussionMessages.setVisibility(View.GONE);
+                    } else {
+                        layoutEmptyChat.setVisibility(View.GONE);
+                        rvDiscussionMessages.setVisibility(View.VISIBLE);
                         rvDiscussionMessages.scrollToPosition(messageList.size() - 1);
                     }
                 });
@@ -218,40 +261,73 @@ public class TaskDiscussionChatActivity extends AppCompatActivity {
 
     private void setupSendButton() {
         btnDiscussionSend.setOnClickListener(v -> {
-            String message = etDiscussionMessage.getText().toString().trim();
-
-            if (message.isEmpty()) {
-                Toast.makeText(TaskDiscussionChatActivity.this, "Please enter a message", Toast.LENGTH_SHORT).show();
+            String text = etDiscussionMessage.getText().toString().trim();
+            if (text.isEmpty()) {
+                Toast.makeText(this, "Type a message first", Toast.LENGTH_SHORT).show();
                 return;
             }
-
-            sendMessage(message);
+            sendDiscussionMessage(text);
         });
     }
 
-    private void sendMessage(String message) {
+    private void sendDiscussionMessage(String messageText) {
+        if (isSending) return;
+        isSending = true;
         btnDiscussionSend.setEnabled(false);
 
-        Map<String, Object> messageData = new HashMap<>();
-        messageData.put("senderId", currentUserId);
-        messageData.put("senderName", currentUserName);
-        messageData.put("sender", currentUserName); // Legacy compatibility
-        messageData.put("senderRole", currentUserRole);
-        messageData.put("message", message);
-        messageData.put("timestamp", System.currentTimeMillis());
+        String activeSenderId = !currentCanonicalId.isEmpty() ? currentCanonicalId : (!currentUserId.isEmpty() ? currentUserId : currentUid);
+
+        Map<String, Object> msgMap = new HashMap<>();
+        msgMap.put("senderId", activeSenderId);
+        msgMap.put("senderUid", currentUid);
+        msgMap.put("senderCanonicalId", currentCanonicalId);
+        msgMap.put("senderName", currentUserName);
+        msgMap.put("senderRole", currentUserRole);
+        msgMap.put("message", messageText);
+        msgMap.put("timestamp", FieldValue.serverTimestamp());
 
         db.collection("task_discussions")
                 .document(discussionDocId)
                 .collection("messages")
-                .add(messageData)
-                .addOnSuccessListener(documentReference -> {
-                    etDiscussionMessage.setText("");
+                .add(msgMap)
+                .addOnSuccessListener(ref -> {
+                    isSending = false;
                     btnDiscussionSend.setEnabled(true);
+                    etDiscussionMessage.setText("");
+
+                    // Update parent doc last updated timestamp
+                    Map<String, Object> parentDoc = new HashMap<>();
+                    parentDoc.put("taskId", taskId);
+                    parentDoc.put("taskTitle", taskTitle);
+                    parentDoc.put("lastMessage", messageText);
+                    parentDoc.put("lastSenderName", currentUserName);
+                    parentDoc.put("lastUpdated", FieldValue.serverTimestamp());
+
+                    db.collection("task_discussions")
+                            .document(discussionDocId)
+                            .set(parentDoc, com.google.firebase.firestore.SetOptions.merge());
                 })
                 .addOnFailureListener(e -> {
+                    isSending = false;
                     btnDiscussionSend.setEnabled(true);
-                    Log.e(TAG, "Failed to send discussion message", e);
-                    Toast.makeText(TaskDiscussionChatActivity.this, "Failed to send message: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    String code = "UNKNOWN";
+                    if (e instanceof com.google.firebase.firestore.FirebaseFirestoreException) {
+                        code = ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode().name();
+                    }
+                    Log.e(TAG, "Operation failed. code=" + code + " message=" + e.getMessage(), e);
+                    String friendly;
+                    if ("PERMISSION_DENIED".equals(code)) {
+                        friendly = "Firestore permission denied. Check authentication and Firestore rules.";
+                    } else if ("UNAUTHENTICATED".equals(code)) {
+                        friendly = "Firebase Authentication session is missing.";
+                    } else if ("UNAVAILABLE".equals(code)) {
+                        friendly = "Firebase is temporarily unavailable.";
+                    } else if ("FAILED_PRECONDITION".equals(code)) {
+                        friendly = "Firestore configuration/precondition issue.";
+                    } else {
+                        friendly = "Failed to send: " + e.getMessage();
+                    }
+                    Toast.makeText(this, friendly, Toast.LENGTH_LONG).show();
                 });
     }
 

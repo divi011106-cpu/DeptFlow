@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // FCM tokens collection
+    match /fcm_tokens/{tokenId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Faculty-to-Faculty Private Chats & Conversations
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated();
+
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // In-App and Push Notifications
+    match /notifications/{notificationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Faculty Personal and Task Reminders
+    match /faculty_reminders/{reminderId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // HOD Task Assignments
+    match /task_assignments/{taskId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Task Discussion Group Chat & Messages
+    match /task_discussions/{taskId} {
+      allow read, write: if isAuthenticated();
+
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // HOD Profile
+    match /hod_profile/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

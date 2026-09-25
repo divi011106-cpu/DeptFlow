@@ -121,7 +121,7 @@ public class TaskRepository {
         });
     }
 
-    private Task taskFromDocument(DocumentSnapshot doc) {
+    public Task taskFromDocument(DocumentSnapshot doc) {
         if (doc == null || !doc.exists()) return null;
         String id = doc.getString("taskId");
         if (id == null || id.isEmpty()) id = doc.getString("id");
@@ -592,8 +592,12 @@ public class TaskRepository {
 
         // 1. Check Firestore tasks cache
         for (Task t : firestoreTasks) {
-            if (taskId.equalsIgnoreCase(t.getTaskId())) {
-                return t;
+            if (t.getTaskId() != null) {
+                if (taskId.equalsIgnoreCase(t.getTaskId())
+                        || t.getTaskId().startsWith(taskId + "_")
+                        || taskId.startsWith(t.getTaskId() + "_")) {
+                    return t;
+                }
             }
         }
 

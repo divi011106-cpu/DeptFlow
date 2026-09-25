@@ -1,9 +1,12 @@
 package com.example.deptflow.communication.adapters;
 
 import android.content.Context;
+import android.graphics.Paint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -11,30 +14,39 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.deptflow.R;
-import com.example.deptflow.communication.models.TaskReminder;
+import com.example.deptflow.communication.models.FacultyReminder;
 import com.google.android.material.card.MaterialCardView;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Adapter for rendering task deadline reminders with urgency-colored countdown badges
- * and direct shortcuts into Task Discussion.
+ * Adapter for rendering personal Faculty Reminders with completion toggles,
+ * edit actions, delete actions, and live schedule formatting.
  */
 public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.ReminderViewHolder> {
 
-    public interface OnReminderClickListener {
-        void onDiscussClick(TaskReminder reminder);
+    public interface OnReminderActionListener {
+        void onToggleCompleted(FacultyReminder reminder, boolean isCompleted);
+        void onEditReminder(FacultyReminder reminder);
+        void onDeleteReminder(FacultyReminder reminder);
     }
 
     private final Context context;
-    private final List<TaskReminder> reminderList;
-    private final OnReminderClickListener listener;
+    private final List<FacultyReminder> reminderList = new ArrayList<>();
+    private final OnReminderActionListener listener;
 
-    public ReminderAdapter(Context context, List<TaskReminder> reminderList, OnReminderClickListener listener) {
+    public ReminderAdapter(Context context, OnReminderActionListener listener) {
         this.context = context;
-        this.reminderList = reminderList != null ? reminderList : new ArrayList<>();
         this.listener = listener;
+    }
+
+    public void updateReminders(List<FacultyReminder> reminders) {
+        reminderList.clear();
+        if (reminders != null) {
+            reminderList.addAll(reminders);
+        }
+        notifyDataSetChanged();
     }
 
     @NonNull
@@ -46,94 +58,76 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
 
     @Override
     public void onBindViewHolder(@NonNull ReminderViewHolder holder, int position) {
-        TaskReminder reminder = reminderList.get(position);
+        FacultyReminder reminder = reminderList.get(position);
 
-        // Title
         holder.tvReminderTitle.setText(reminder.getTitle());
 
-        // Description
         String desc = reminder.getDescription();
-        if (desc == null || desc.trim().isEmpty()) {
-            holder.tvReminderDescription.setVisibility(View.GONE);
-        } else {
+        if (desc != null && !desc.trim().isEmpty()) {
             holder.tvReminderDescription.setVisibility(View.VISIBLE);
             holder.tvReminderDescription.setText(desc.trim());
-        }
-
-        // Deadline
-        holder.tvReminderDeadline.setText("Deadline: " + reminder.getDeadline());
-
-        // Priority
-        String priority = reminder.getPriority();
-        holder.tvReminderPriority.setText(priority.toUpperCase());
-
-        // Status
-        String status = reminder.getStatus();
-        holder.tvReminderStatus.setText(status.toUpperCase());
-        if ("COMPLETED".equalsIgnoreCase(status)) {
-            holder.tvReminderStatus.setBackgroundResource(R.drawable.bg_status_completed);
-            holder.tvReminderStatus.setTextColor(ContextCompat.getColor(context, R.color.status_completed_text));
-        } else if ("IN PROGRESS".equalsIgnoreCase(status) || "IN_PROGRESS".equalsIgnoreCase(status)) {
-            holder.tvReminderStatus.setBackgroundResource(R.drawable.bg_status_inprogress);
-            holder.tvReminderStatus.setTextColor(ContextCompat.getColor(context, R.color.status_inprogress_text));
         } else {
-            holder.tvReminderStatus.setBackgroundResource(R.drawable.bg_status_pending);
-            holder.tvReminderStatus.setTextColor(ContextCompat.getColor(context, R.color.status_pending_text));
+            holder.tvReminderDescription.setVisibility(View.GONE);
         }
 
-        // Countdown Badge & Card Stroke Urgency Styling
-        TaskReminder.UrgencyCategory category = reminder.getCategory();
-        holder.tvCountdownBadge.setText(reminder.getCountdownText());
+        // Scheduled Time text
+        holder.tvReminderDeadline.setText("⏰ Scheduled: " + reminder.getFormattedScheduledText());
 
-        switch (category) {
-            case OVERDUE:
-                holder.tvCountdownBadge.setBackgroundResource(R.drawable.bg_priority_high);
-                holder.tvCountdownBadge.setTextColor(ContextCompat.getColor(context, R.color.priority_high_text));
-                holder.cardReminder.setStrokeColor(ContextCompat.getColor(context, R.color.priority_high));
-                holder.cardReminder.setStrokeWidth(3);
-                break;
+        // Completed checkbox & strike-through styling
+        holder.cbReminderCompleted.setOnCheckedChangeListener(null);
+        holder.cbReminderCompleted.setChecked(reminder.isCompleted());
 
-            case DUE_TODAY:
-                holder.tvCountdownBadge.setBackgroundResource(R.drawable.bg_priority_medium);
-                holder.tvCountdownBadge.setTextColor(ContextCompat.getColor(context, R.color.priority_medium_text));
-                holder.cardReminder.setStrokeColor(ContextCompat.getColor(context, R.color.gold_accent));
-                holder.cardReminder.setStrokeWidth(3);
-                break;
+        if (reminder.isCompleted()) {
+            holder.tvReminderStatus.setText("COMPLETED");
+            holder.tvReminderStatus.setBackgroundResource(R.drawable.bg_stat_completed);
+            holder.tvReminderStatus.setTextColor(ContextCompat.getColor(context, R.color.stat_completed_text));
+            holder.tvCountdownBadge.setVisibility(View.GONE);
 
-            case DUE_TOMORROW:
-                holder.tvCountdownBadge.setBackgroundResource(R.drawable.bg_stat_pending);
-                holder.tvCountdownBadge.setTextColor(ContextCompat.getColor(context, R.color.stat_pending_text));
-                holder.cardReminder.setStrokeColor(ContextCompat.getColor(context, R.color.gold_accent));
-                holder.cardReminder.setStrokeWidth(2);
-                break;
+            // Strike through title
+            holder.tvReminderTitle.setPaintFlags(
+                    holder.tvReminderTitle.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            holder.tvReminderTitle.setTextColor(ContextCompat.getColor(context, R.color.text_secondary));
+            holder.cardReminder.setAlpha(0.75f);
+        } else {
+            holder.tvReminderTitle.setPaintFlags(
+                    holder.tvReminderTitle.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+            holder.tvReminderTitle.setTextColor(ContextCompat.getColor(context, R.color.text_primary));
+            holder.cardReminder.setAlpha(1.0f);
 
-            case COMPLETED:
-                holder.tvCountdownBadge.setBackgroundResource(R.drawable.bg_status_completed);
-                holder.tvCountdownBadge.setTextColor(ContextCompat.getColor(context, R.color.status_completed_text));
-                holder.cardReminder.setStrokeColor(ContextCompat.getColor(context, R.color.card_stroke));
-                holder.cardReminder.setStrokeWidth(1);
-                break;
+            if (reminder.isPastDue()) {
+                holder.tvReminderStatus.setText("PENDING");
+                holder.tvReminderStatus.setBackgroundResource(R.drawable.bg_stat_pending);
+                holder.tvReminderStatus.setTextColor(ContextCompat.getColor(context, R.color.stat_pending_text));
 
-            case UPCOMING:
-            default:
-                holder.tvCountdownBadge.setBackgroundResource(R.drawable.bg_stat_inprogress);
-                holder.tvCountdownBadge.setTextColor(ContextCompat.getColor(context, R.color.primary));
-                holder.cardReminder.setStrokeColor(ContextCompat.getColor(context, R.color.card_stroke));
-                holder.cardReminder.setStrokeWidth(1);
-                break;
+                holder.tvCountdownBadge.setVisibility(View.VISIBLE);
+                holder.tvCountdownBadge.setText("⚠️ OVERDUE");
+            } else {
+                holder.tvReminderStatus.setText("UPCOMING");
+                holder.tvReminderStatus.setBackgroundResource(R.drawable.bg_stat_inprogress);
+                holder.tvReminderStatus.setTextColor(ContextCompat.getColor(context, R.color.primary));
+
+                holder.tvCountdownBadge.setVisibility(View.GONE);
+            }
         }
 
-        // Click on Discuss button
-        holder.btnDiscussReminder.setOnClickListener(v -> {
+        // Checkbox listener
+        holder.cbReminderCompleted.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (listener != null) {
-                listener.onDiscussClick(reminder);
+                listener.onToggleCompleted(reminder, isChecked);
             }
         });
 
-        // Click on card
-        holder.itemView.setOnClickListener(v -> {
+        // Edit listener
+        holder.btnEditReminder.setOnClickListener(v -> {
             if (listener != null) {
-                listener.onDiscussClick(reminder);
+                listener.onEditReminder(reminder);
+            }
+        });
+
+        // Delete listener
+        holder.btnDeleteReminder.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onDeleteReminder(reminder);
             }
         });
     }
@@ -143,34 +137,28 @@ public class ReminderAdapter extends RecyclerView.Adapter<ReminderAdapter.Remind
         return reminderList.size();
     }
 
-    public void updateReminders(List<TaskReminder> newReminders) {
-        this.reminderList.clear();
-        if (newReminders != null) {
-            this.reminderList.addAll(newReminders);
-        }
-        notifyDataSetChanged();
-    }
-
     static class ReminderViewHolder extends RecyclerView.ViewHolder {
         MaterialCardView cardReminder;
-        TextView tvCountdownBadge;
-        TextView tvReminderPriority;
+        CheckBox cbReminderCompleted;
         TextView tvReminderStatus;
+        TextView tvCountdownBadge;
         TextView tvReminderTitle;
         TextView tvReminderDescription;
         TextView tvReminderDeadline;
-        View btnDiscussReminder;
+        ImageButton btnEditReminder;
+        ImageButton btnDeleteReminder;
 
         ReminderViewHolder(@NonNull View itemView) {
             super(itemView);
             cardReminder = itemView.findViewById(R.id.cardReminder);
-            tvCountdownBadge = itemView.findViewById(R.id.tvCountdownBadge);
-            tvReminderPriority = itemView.findViewById(R.id.tvReminderPriority);
+            cbReminderCompleted = itemView.findViewById(R.id.cbReminderCompleted);
             tvReminderStatus = itemView.findViewById(R.id.tvReminderStatus);
+            tvCountdownBadge = itemView.findViewById(R.id.tvCountdownBadge);
             tvReminderTitle = itemView.findViewById(R.id.tvReminderTitle);
             tvReminderDescription = itemView.findViewById(R.id.tvReminderDescription);
             tvReminderDeadline = itemView.findViewById(R.id.tvReminderDeadline);
-            btnDiscussReminder = itemView.findViewById(R.id.btnDiscussReminder);
+            btnEditReminder = itemView.findViewById(R.id.btnEditReminder);
+            btnDeleteReminder = itemView.findViewById(R.id.btnDeleteReminder);
         }
     }
 }

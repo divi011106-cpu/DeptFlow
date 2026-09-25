@@ -263,6 +263,20 @@ public class AssignTaskActivity extends AppCompatActivity {
             }
 
             // Create individual document per faculty for precise direct matching in Faculty Module
+            SimpleDateFormat deadlineParser = new SimpleDateFormat("dd MMM yyyy", Locale.getDefault());
+            long deadlineMillis = System.currentTimeMillis() + 86400000L;
+            try {
+                java.util.Date parsedDate = deadlineParser.parse(deadline);
+                if (parsedDate != null) {
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(parsedDate);
+                    cal.set(Calendar.HOUR_OF_DAY, 9);
+                    cal.set(Calendar.MINUTE, 0);
+                    cal.set(Calendar.SECOND, 0);
+                    deadlineMillis = cal.getTimeInMillis();
+                }
+            } catch (Exception ignored) {}
+
             for (int i = 0; i < selectedList.size(); i++) {
                 String faculty = selectedList.get(i);
                 String docId = (selectedList.size() == 1) ? taskId : taskId + "_" + (i + 1);
@@ -285,6 +299,40 @@ public class AssignTaskActivity extends AppCompatActivity {
                 docMap.put("timestamp", System.currentTimeMillis());
 
                 db.collection("task_assignments").document(docId).set(docMap);
+
+                // 1. Create notification for assigned faculty
+                String notifDocId = "notif_task_" + docId;
+                Map<String, Object> notifMap = new HashMap<>();
+                notifMap.put("notificationId", notifDocId);
+                notifMap.put("recipientName", faculty);
+                notifMap.put("recipientId", faculty);
+                notifMap.put("title", "Task Assignment");
+                notifMap.put("subtitle", title);
+                notifMap.put("message", description);
+                notifMap.put("deadline", deadline);
+                notifMap.put("priority", normPriority);
+                notifMap.put("taskId", taskId);
+                notifMap.put("type", "TASK_ASSIGNED");
+                notifMap.put("sender", "HOD (Department Head)");
+                notifMap.put("timestamp", System.currentTimeMillis());
+                notifMap.put("isRead", false);
+                db.collection("notifications").document(notifDocId).set(notifMap);
+
+                // 2. Automatically create deadline reminder for assigned faculty
+                String reminderDocId = "rem_task_" + docId;
+                Map<String, Object> reminderMap = new HashMap<>();
+                reminderMap.put("reminderId", reminderDocId);
+                reminderMap.put("facultyName", faculty);
+                reminderMap.put("facultyId", faculty);
+                reminderMap.put("title", "Task Deadline: " + title);
+                reminderMap.put("description", "Due: " + deadline + " • " + description);
+                reminderMap.put("scheduledDateTime", deadlineMillis);
+                reminderMap.put("scheduledDateStr", deadline);
+                reminderMap.put("scheduledTimeStr", "09:00 AM");
+                reminderMap.put("createdAt", System.currentTimeMillis());
+                reminderMap.put("isCompleted", false);
+                reminderMap.put("status", "PENDING");
+                db.collection("faculty_reminders").document(reminderDocId).set(reminderMap);
             }
 
             // Synchronize with local TaskData.tasks bridge so any synchronous in-memory readers have it immediately

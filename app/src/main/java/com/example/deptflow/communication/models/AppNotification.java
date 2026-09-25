@@ -8,12 +8,13 @@ import java.util.Locale;
 
 /**
  * Model representing a notification in the Communication module.
- * Represents task assignment alerts and department announcements.
+ * Represents task assignment alerts, department announcements, and faculty chat messages.
  */
 public class AppNotification implements Serializable {
 
     public static final String TYPE_TASK = "TASK_ASSIGNED";
     public static final String TYPE_ANNOUNCEMENT = "ANNOUNCEMENT";
+    public static final String TYPE_CHAT = "CHAT_MESSAGE";
 
     private String id;
     private String type;
@@ -24,12 +25,19 @@ public class AppNotification implements Serializable {
     private String priority;
     private long timestamp;
     private String sender;
+    private String senderId;
+    private String recipientId;
+    private String chatId;
+    private String messageId;
     private String taskId;
     private boolean isRead;
 
     public AppNotification() {
     }
 
+    /**
+     * Constructor for Task assignment and Announcement notifications.
+     */
     public AppNotification(String id, String type, String title, String subtitle,
                            String message, String deadline, String priority,
                            long timestamp, String sender, String taskId, boolean isRead) {
@@ -44,6 +52,34 @@ public class AppNotification implements Serializable {
         this.sender = sender != null ? sender : "HOD";
         this.taskId = taskId;
         this.isRead = isRead;
+        this.senderId = "";
+        this.recipientId = "";
+        this.chatId = "";
+        this.messageId = "";
+    }
+
+    /**
+     * Constructor for Faculty Chat notifications.
+     */
+    public AppNotification(String id, String type, String title, String subtitle,
+                           String message, long timestamp, String sender,
+                           String senderId, String recipientId, String chatId,
+                           String messageId, boolean isRead) {
+        this.id = id;
+        this.type = type != null ? type : TYPE_CHAT;
+        this.title = title;
+        this.subtitle = subtitle;
+        this.message = message;
+        this.timestamp = timestamp;
+        this.sender = sender != null ? sender : "Faculty";
+        this.senderId = senderId != null ? senderId : "";
+        this.recipientId = recipientId != null ? recipientId : "";
+        this.chatId = chatId != null ? chatId : "";
+        this.messageId = messageId != null ? messageId : "";
+        this.isRead = isRead;
+        this.deadline = "";
+        this.priority = "";
+        this.taskId = "";
     }
 
     public String getId() {
@@ -116,6 +152,38 @@ public class AppNotification implements Serializable {
 
     public void setSender(String sender) {
         this.sender = sender;
+    }
+
+    public String getSenderId() {
+        return senderId != null ? senderId : "";
+    }
+
+    public void setSenderId(String senderId) {
+        this.senderId = senderId;
+    }
+
+    public String getRecipientId() {
+        return recipientId != null ? recipientId : "";
+    }
+
+    public void setRecipientId(String recipientId) {
+        this.recipientId = recipientId;
+    }
+
+    public String getChatId() {
+        return chatId != null ? chatId : "";
+    }
+
+    public void setChatId(String chatId) {
+        this.chatId = chatId;
+    }
+
+    public String getMessageId() {
+        return messageId != null ? messageId : "";
+    }
+
+    public void setMessageId(String messageId) {
+        this.messageId = messageId;
     }
 
     public String getTaskId() {

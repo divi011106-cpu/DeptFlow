@@ -1,12 +1,12 @@
-
 package com.example.deptflow.communication;
 
+import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -17,6 +17,12 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.deptflow.R;
+import com.example.deptflow.auth.AuthManager;
+import com.example.deptflow.communication.models.AppNotification;
+import com.example.deptflow.communication.models.FacultyDirectory;
+import com.example.deptflow.communication.services.FcmTokenManager;
+import com.example.deptflow.feature.faculty.models.FacultyUser;
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -24,17 +30,30 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.SetOptions;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
+/**
+ * ChatActivity — WhatsApp-style one-to-one Faculty chat with real-time sync,
+ * message bubbles, delivery/read tick marks, deterministic conversation tracking,
+ * and recipient-specific unread counters & notifications.
+ */
 public class ChatActivity extends AppCompatActivity {
 
-    private TextView tvChatTitle, tvStatus;
+    private static final String TAG = "ChatActivity";
+
+    private TextView tvChatTitle, tvStatus, tvChatAvatarInitial;
     private EditText etMessage;
-    private Button btnSend, btnBack, btnEmoji;
+    private View btnSend, btnBack, btnEmoji;
     private LinearLayout messageContainer;
     private ScrollView scrollMessages;
 
@@ -42,23 +61,45 @@ public class ChatActivity extends AppCompatActivity {
     private FirebaseAuth firebaseAuth;
     private ListenerRegistration messageListener;
 
-    private String facultyName = "Faculty";
-    private String selectedFacultyId = "";
+    private String recipientFacultyName = "Faculty";
+    private String recipientFacultyId = "";
+    private String recipientCanonicalId = "";
+    private String recipientFacultyUid = "";
+
     private String currentUserId = "";
-    private String currentUserName = "User";
-    private String currentUserRole = "USER";
+    private String currentCanonicalId = "";
+    private String currentSenderUid = "";
+    private String currentUserName = "Faculty";
+    private String currentUserRole = "FACULTY";
     private String chatId = "";
 
     private boolean identityLoaded = false;
     private boolean chatScreenActive = false;
+    private boolean isSending = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
 
+        initViews();
+
+        db = FirebaseFirestore.getInstance();
+        firebaseAuth = FirebaseAuth.getInstance();
+
+        extractIntentData();
+        setupClickListeners();
+
+        // Register FCM device token
+        FcmTokenManager.registerDeviceToken(this);
+
+        loadCurrentUser();
+    }
+
+    private void initViews() {
         tvChatTitle = findViewById(R.id.tvChatTitle);
         tvStatus = findViewById(R.id.tvStatus);
+        tvChatAvatarInitial = findViewById(R.id.tvChatAvatarInitial);
         etMessage = findViewById(R.id.etMessage);
         btnSend = findViewById(R.id.btnSend);
         btnBack = findViewById(R.id.btnBack);
@@ -66,169 +107,383 @@ public class ChatActivity extends AppCompatActivity {
         messageContainer = findViewById(R.id.messageContainer);
         scrollMessages = findViewById(R.id.scrollMessages);
 
-        db = FirebaseFirestore.getInstance();
-        firebaseAuth = FirebaseAuth.getInstance();
-
-        facultyName = getIntent().getStringExtra("facultyName");
-        selectedFacultyId = getIntent().getStringExtra("facultyId");
-
-        if (facultyName == null || facultyName.trim().isEmpty()) {
-            facultyName = "Faculty";
-        }
-
-        if (selectedFacultyId == null) {
-            selectedFacultyId = "";
-        }
-
-        tvChatTitle.setText(facultyName);
-        tvStatus.setText("Loading account...");
         btnSend.setEnabled(false);
+    }
 
+    private void extractIntentData() {
+        recipientFacultyName = getIntent().getStringExtra("facultyName");
+        recipientFacultyId = getIntent().getStringExtra("facultyId");
+        recipientFacultyUid = getIntent().getStringExtra("facultyUid");
+        String passedChatId = getIntent().getStringExtra("chatId");
+
+        if (passedChatId != null && !passedChatId.trim().isEmpty()) {
+            chatId = passedChatId.trim();
+        }
+
+        if (recipientFacultyName == null || recipientFacultyName.trim().isEmpty()) {
+            recipientFacultyName = "Faculty";
+        }
+
+        if (recipientFacultyId == null) {
+            recipientFacultyId = "";
+        }
+
+        if (recipientFacultyUid == null) {
+            recipientFacultyUid = "";
+        }
+
+        // Resolve recipient canonical info
+        FacultyUser canonicalRecipient = FacultyDirectory.resolveByNameOrId(
+                !recipientFacultyId.isEmpty() ? recipientFacultyId : recipientFacultyName
+        );
+
+        if (canonicalRecipient != null) {
+            recipientCanonicalId = canonicalRecipient.getUserId();
+            recipientFacultyName = canonicalRecipient.getName();
+        } else {
+            recipientCanonicalId = recipientFacultyId;
+        }
+
+        tvChatTitle.setText(recipientFacultyName);
+        if (tvChatAvatarInitial != null && recipientFacultyName.length() > 0) {
+            tvChatAvatarInitial.setText(recipientFacultyName.substring(0, 1).toUpperCase(Locale.ROOT));
+        }
+        tvStatus.setText("Connecting...");
+    }
+
+    private void setupClickListeners() {
         btnBack.setOnClickListener(v -> finish());
 
         btnEmoji.setOnClickListener(v -> {
             etMessage.requestFocus();
-
             InputMethodManager imm =
-                    (InputMethodManager) getSystemService(
-                            Context.INPUT_METHOD_SERVICE
-                    );
-
+                    (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
             if (imm != null) {
-                imm.showSoftInput(
-                        etMessage,
-                        InputMethodManager.SHOW_IMPLICIT
-                );
+                imm.showSoftInput(etMessage, InputMethodManager.SHOW_IMPLICIT);
             }
         });
 
         btnSend.setOnClickListener(v -> {
             String message = etMessage.getText().toString().trim();
-
             if (message.isEmpty()) {
-                Toast.makeText(this, "Enter a message", Toast.LENGTH_SHORT)
-                        .show();
+                Toast.makeText(this, "Please enter a message", Toast.LENGTH_SHORT).show();
                 return;
             }
-
             sendMessage(message);
         });
-
-        if (selectedFacultyId.trim().isEmpty()) {
-            tvStatus.setText("Faculty ID missing. Reopen faculty list.");
-            return;
-        }
-
-        loadCurrentUser();
     }
 
     private void loadCurrentUser() {
         FirebaseUser authUser = firebaseAuth.getCurrentUser();
+        if (authUser != null) {
+            currentSenderUid = authUser.getUid();
+            if (authUser.getDisplayName() != null && !authUser.getDisplayName().trim().isEmpty()) {
+                currentUserName = authUser.getDisplayName().trim();
+            }
+        }
 
-        if (authUser == null || authUser.getEmail() == null) {
+        FacultyUser cachedUser = AuthManager.getInstance(this).getCurrentUser();
+        if (cachedUser != null) {
+            if (cachedUser.getUserId() != null && !cachedUser.getUserId().trim().isEmpty()) {
+                currentUserId = cachedUser.getUserId().trim();
+            }
+            if (cachedUser.getName() != null && !cachedUser.getName().trim().isEmpty()) {
+                currentUserName = cachedUser.getName().trim();
+            }
+            if (cachedUser.getRole() != null && !cachedUser.getRole().trim().isEmpty()) {
+                currentUserRole = cachedUser.getRole().trim();
+            }
+
+            FacultyUser canonicalMe = FacultyDirectory.resolveCanonicalFaculty(cachedUser);
+            if (canonicalMe != null) {
+                currentCanonicalId = canonicalMe.getUserId();
+                currentUserName = canonicalMe.getName();
+            }
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentUserName.isEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserName);
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentUserId.isEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserId);
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentSenderUid.isEmpty()) {
+            currentCanonicalId = currentSenderUid;
+        }
+
+        if (currentSenderUid.isEmpty() && currentCanonicalId.isEmpty()) {
             tvStatus.setText("Please log in first.");
             return;
         }
 
-        db.collection("users")
-                .whereEqualTo("email", authUser.getEmail())
-                .limit(1)
-                .get()
-                .addOnSuccessListener(snapshot -> {
-                    if (snapshot.isEmpty()) {
-                        tvStatus.setText("Your account was not found.");
-                        return;
-                    }
-
-                    DocumentSnapshot userDoc =
-                            snapshot.getDocuments().get(0);
-
-                    String userId = userDoc.getString("userId");
-                    if (userId == null || userId.trim().isEmpty()) {
-                        userId = userDoc.getString("userID");
-                    }
-                    if (userId == null || userId.trim().isEmpty()) {
-                        userId = userDoc.getId();
-                    }
-
-                    currentUserId = userId;
-                    currentUserName = userDoc.getString("name") == null
-                            ? "User" : userDoc.getString("name");
-                    currentUserRole = userDoc.getString("role") == null
-                            ? "USER" : userDoc.getString("role");
-
-                    if (currentUserId.equals(selectedFacultyId)) {
-                        tvStatus.setText("You cannot chat with yourself.");
-                        return;
-                    }
-
-                    identityLoaded = true;
-                    createChatId();
-
-                    btnSend.setEnabled(true);
-                    tvStatus.setText("Connected");
-
-                    listenForMessages();
-                })
-                .addOnFailureListener(e -> {
-                    tvStatus.setText("Could not load account.");
-                    Toast.makeText(
-                            this,
-                            e.getMessage(),
-                            Toast.LENGTH_LONG
-                    ).show();
-                });
+        finishIdentitySetup();
     }
 
-    private void createChatId() {
-        ArrayList<String> ids = new ArrayList<>();
-        ids.add(currentUserId);
-        ids.add(selectedFacultyId);
-        Collections.sort(ids);
-        chatId = ids.get(0) + "_" + ids.get(1);
-    }
+    private void finishIdentitySetup() {
+        if (recipientCanonicalId.isEmpty() && !chatId.isEmpty()) {
+            String[] parts = chatId.split("_");
+            if (parts.length == 2) {
+                if (currentCanonicalId.equalsIgnoreCase(parts[0]) || currentUserId.equalsIgnoreCase(parts[0])) {
+                    recipientCanonicalId = parts[1];
+                } else {
+                    recipientCanonicalId = parts[0];
+                }
+                recipientFacultyName = FacultyDirectory.resolveCanonicalName(recipientCanonicalId);
+                tvChatTitle.setText(recipientFacultyName);
+            }
+        }
 
-    private void sendMessage(String message) {
-        if (!identityLoaded || chatId.isEmpty()) {
-            Toast.makeText(this, "Chat is not ready.", Toast.LENGTH_SHORT)
-                    .show();
+        if (recipientCanonicalId.trim().isEmpty()) {
+            tvStatus.setText("Recipient ID missing.");
             return;
         }
 
+        if (currentCanonicalId.equalsIgnoreCase(recipientCanonicalId)) {
+            tvStatus.setText("Cannot chat with yourself.");
+            return;
+        }
+
+        // Generate deterministic, symmetric Chat ID
+        chatId = FacultyDirectory.getDeterministicChatId(currentCanonicalId, recipientCanonicalId);
+
+        identityLoaded = true;
+        btnSend.setEnabled(true);
+        tvStatus.setText("Active in Department");
+
+        Log.d(TAG, "Chat initialized: ChatId=" + chatId
+                + ", Sender=" + currentCanonicalId + " (" + currentUserName + ")"
+                + ", Recipient=" + recipientCanonicalId + " (" + recipientFacultyName + ")");
+
+        markConversationReadInFirestore();
+        listenForMessages();
+    }
+
+    private void sendMessage(String messageText) {
+        if (!identityLoaded || chatId.isEmpty() || isSending) {
+            Toast.makeText(this, "Chat is not ready.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        isSending = true;
         btnSend.setEnabled(false);
+        tvStatus.setText("Sending...");
 
         Map<String, Object> data = new HashMap<>();
-        data.put("senderId", currentUserId);
+        data.put("senderId", currentCanonicalId);
+        data.put("senderUid", currentSenderUid);
         data.put("senderName", currentUserName);
         data.put("senderRole", currentUserRole);
-        data.put("message", message);
+        data.put("recipientId", recipientCanonicalId);
+        data.put("recipientUid", recipientFacultyUid);
+        data.put("recipientName", recipientFacultyName);
+        data.put("message", messageText);
         data.put("timestamp", FieldValue.serverTimestamp());
-
-        // Initial receipt state
         data.put("deliveredTo", new ArrayList<String>());
         data.put("readBy", new ArrayList<String>());
 
+        // 1. Add message to chats/{chatId}/messages
         db.collection("chats")
                 .document(chatId)
                 .collection("messages")
                 .add(data)
                 .addOnSuccessListener(ref -> {
-                    etMessage.setText("");
+                    isSending = false;
                     btnSend.setEnabled(true);
+                    etMessage.setText("");
+                    tvStatus.setText("Active in Department");
+
+                    // 2. Update root conversation document with unread counter increment
+                    updateRootConversation(messageText);
+
+                    // 3. Create Notification Document for Recipient
+                    createChatNotification(ref.getId(), messageText);
                 })
                 .addOnFailureListener(e -> {
+                    isSending = false;
                     btnSend.setEnabled(true);
-                    tvStatus.setText("Message could not be sent.");
-                    Toast.makeText(
-                            this,
-                            "Send error: " + e.getMessage(),
-                            Toast.LENGTH_LONG
-                    ).show();
+                    tvStatus.setText("Failed to send");
+                    String code = "UNKNOWN";
+                    if (e instanceof com.google.firebase.firestore.FirebaseFirestoreException) {
+                        code = ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode().name();
+                    }
+                    Log.e(TAG, "Operation failed. code=" + code + " message=" + e.getMessage(), e);
+                    String friendly;
+                    if ("PERMISSION_DENIED".equals(code)) {
+                        friendly = "Firestore permission denied. Check authentication and Firestore rules.";
+                    } else if ("UNAUTHENTICATED".equals(code)) {
+                        friendly = "Firebase Authentication session is missing.";
+                    } else if ("UNAVAILABLE".equals(code)) {
+                        friendly = "Firebase is temporarily unavailable.";
+                    } else if ("FAILED_PRECONDITION".equals(code)) {
+                        friendly = "Firestore configuration/precondition issue.";
+                    } else {
+                        friendly = "Failed to send: " + e.getMessage();
+                    }
+                    Toast.makeText(this, friendly, Toast.LENGTH_LONG).show();
                 });
+    }
+
+    /**
+     * Updates the root conversation document with participants, last message,
+     * timestamp, and increments recipient's unread counter.
+     */
+    private void updateRootConversation(String messageText) {
+        Set<String> participants = new HashSet<>();
+        participants.add(currentCanonicalId);
+        participants.add(recipientCanonicalId);
+        participants.add(currentUserName);
+        participants.add(recipientFacultyName);
+        if (!currentUserId.isEmpty()) participants.add(currentUserId);
+        if (!recipientFacultyId.isEmpty()) participants.add(recipientFacultyId);
+        if (!currentSenderUid.isEmpty()) participants.add(currentSenderUid);
+        if (!recipientFacultyUid.isEmpty()) participants.add(recipientFacultyUid);
+
+        List<String> participantIds = new ArrayList<>();
+        participantIds.add(currentCanonicalId);
+        participantIds.add(recipientCanonicalId);
+
+        List<String> participantNames = new ArrayList<>();
+        participantNames.add(currentUserName);
+        participantNames.add(recipientFacultyName);
+
+        Map<String, Object> rootData = new HashMap<>();
+        rootData.put("chatId", chatId);
+        rootData.put("conversationId", chatId);
+        rootData.put("participants", new ArrayList<>(participants));
+        rootData.put("participantIds", participantIds);
+        rootData.put("participantNames", participantNames);
+        rootData.put("lastMessage", messageText);
+        rootData.put("lastMessageTime", FieldValue.serverTimestamp());
+        rootData.put("timestamp", FieldValue.serverTimestamp());
+        rootData.put("lastTimestamp", FieldValue.serverTimestamp());
+        rootData.put("lastSenderId", currentCanonicalId);
+        rootData.put("lastSenderName", currentUserName);
+
+        // Increment unread count for recipient
+        if (!recipientCanonicalId.isEmpty()) {
+            rootData.put("unreadCount_" + recipientCanonicalId, FieldValue.increment(1));
+        }
+        if (!recipientFacultyId.isEmpty() && !recipientFacultyId.equals(recipientCanonicalId)) {
+            rootData.put("unreadCount_" + recipientFacultyId, FieldValue.increment(1));
+        }
+        if (!recipientFacultyUid.isEmpty()) {
+            rootData.put("unreadCount_" + recipientFacultyUid, FieldValue.increment(1));
+        }
+
+        db.collection("chats").document(chatId)
+                .set(rootData, SetOptions.merge())
+                .addOnSuccessListener(aVoid -> Log.d(TAG, "Root conversation doc updated for " + chatId))
+                .addOnFailureListener(e -> {
+                    String code = "UNKNOWN";
+                    if (e instanceof com.google.firebase.firestore.FirebaseFirestoreException) {
+                        code = ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode().name();
+                    }
+                    Log.e(TAG, "Operation failed. code=" + code + " message=" + e.getMessage(), e);
+                });
+    }
+
+    /**
+     * Resets unread counter for the current user and marks notifications as read.
+     */
+    private void markConversationReadInFirestore() {
+        if (chatId.isEmpty()) return;
+
+        Map<String, Object> resetMap = new HashMap<>();
+        if (!currentCanonicalId.isEmpty()) {
+            resetMap.put("unreadCount_" + currentCanonicalId, 0);
+        }
+        if (!currentUserId.isEmpty()) {
+            resetMap.put("unreadCount_" + currentUserId, 0);
+        }
+        if (!currentSenderUid.isEmpty()) {
+            resetMap.put("unreadCount_" + currentSenderUid, 0);
+        }
+        if (!currentUserName.isEmpty()) {
+            resetMap.put("unreadCount_" + currentUserName.toLowerCase(Locale.ROOT), 0);
+        }
+
+        db.collection("chats").document(chatId)
+                .set(resetMap, SetOptions.merge())
+                .addOnFailureListener(e -> Log.w(TAG, "Could not reset unread counter: " + e.getMessage()));
+
+        // Mark chat notifications read in top-level notifications collection
+        markNotificationsRead();
+    }
+
+    private void markNotificationsRead() {
+        if (currentCanonicalId.isEmpty() && currentUserId.isEmpty() && currentSenderUid.isEmpty()) return;
+
+        // Query by chatId and mark read
+        db.collection("notifications")
+                .whereEqualTo("chatId", chatId)
+                .get()
+                .addOnSuccessListener(snap -> {
+                    for (DocumentSnapshot d : snap.getDocuments()) {
+                        String recId = d.getString("recipientId");
+                        String recUid = d.getString("recipientUid");
+                        String recName = d.getString("recipientName");
+
+                        boolean isMine = (recId != null && (recId.equalsIgnoreCase(currentCanonicalId) || recId.equalsIgnoreCase(currentUserId)))
+                                || (recUid != null && recUid.equals(currentSenderUid))
+                                || (recName != null && recName.equalsIgnoreCase(currentUserName));
+
+                        if (isMine) {
+                            d.getReference().update("isRead", true);
+                        }
+                    }
+                });
+    }
+
+    /**
+     * Creates a separate notification document for recipient in top-level 'notifications' collection.
+     */
+    private void createChatNotification(String messageId, String messageText) {
+        if (recipientCanonicalId.trim().isEmpty()) {
+            Log.w(TAG, "Cannot create notification: recipientCanonicalId is empty");
+            return;
+        }
+
+        String notificationDocId = "notif_" + messageId + "_" + recipientCanonicalId;
+
+        Map<String, Object> notifData = new HashMap<>();
+        notifData.put("notificationId", notificationDocId);
+        notifData.put("recipientId", recipientCanonicalId);
+        if (!recipientFacultyId.isEmpty()) notifData.put("recipientFacultyId", recipientFacultyId);
+        if (!recipientFacultyUid.isEmpty()) notifData.put("recipientUid", recipientFacultyUid);
+        notifData.put("recipientName", recipientFacultyName);
+
+        notifData.put("senderId", currentCanonicalId);
+        notifData.put("senderFacultyId", currentUserId);
+        if (!currentSenderUid.isEmpty()) notifData.put("senderUid", currentSenderUid);
+        notifData.put("senderName", currentUserName);
+        notifData.put("sender", currentUserName);
+
+        notifData.put("chatId", chatId);
+        notifData.put("conversationId", chatId);
+        notifData.put("messageId", messageId);
+        notifData.put("messagePreview", messageText);
+        notifData.put("message", messageText);
+        notifData.put("title", "Faculty Message");
+        notifData.put("subtitle", "New message from " + currentUserName);
+        notifData.put("timestamp", FieldValue.serverTimestamp());
+        notifData.put("isRead", false);
+        notifData.put("type", AppNotification.TYPE_CHAT);
+
+        db.collection("notifications")
+                .document(notificationDocId)
+                .set(notifData)
+                .addOnSuccessListener(aVoid -> Log.d(TAG, "Notification doc written: " + notificationDocId))
+                .addOnFailureListener(e -> Log.e(TAG, "Failed writing notification: " + e.getMessage(), e));
     }
 
     private void listenForMessages() {
         if (!identityLoaded || chatId.isEmpty()) return;
+
+        if (messageListener != null) {
+            messageListener.remove();
+        }
 
         messageListener = db.collection("chats")
                 .document(chatId)
@@ -236,35 +491,63 @@ public class ChatActivity extends AppCompatActivity {
                 .orderBy("timestamp", Query.Direction.ASCENDING)
                 .addSnapshotListener((snapshots, error) -> {
                     if (error != null) {
-                        tvStatus.setText("Unable to load messages.");
+                        String code = "UNKNOWN";
+                        if (error instanceof com.google.firebase.firestore.FirebaseFirestoreException) {
+                            code = error.getCode().name();
+                        }
+                        Log.e(TAG, "Operation failed. code=" + code + " message=" + error.getMessage(), error);
+                        if ("PERMISSION_DENIED".equals(code)) {
+                            tvStatus.setText("Permission denied. Check Firestore rules.");
+                        } else if ("UNAUTHENTICATED".equals(code)) {
+                            tvStatus.setText("Authentication session missing.");
+                        } else if ("UNAVAILABLE".equals(code)) {
+                            tvStatus.setText("Firebase temporarily unavailable.");
+                        } else {
+                            tvStatus.setText("Unable to load messages.");
+                        }
                         return;
                     }
 
                     if (snapshots == null) return;
 
+                    tvStatus.setText("Active in Department");
                     messageContainer.removeAllViews();
 
                     for (DocumentSnapshot doc : snapshots.getDocuments()) {
                         String senderId = doc.getString("senderId");
+                        String senderUid = doc.getString("senderUid");
                         String senderName = doc.getString("senderName");
                         String message = doc.getString("message");
+                        Timestamp ts = doc.getTimestamp("timestamp");
 
                         if (message == null) continue;
 
-                        boolean isMine = currentUserId.equals(senderId);
+                        boolean isMine = isMyMessage(senderId, senderUid, senderName);
 
-                        // When recipient sees a message, mark delivered/read.
                         if (!isMine && chatScreenActive) {
                             markMessageRead(doc);
                         }
 
-                        addMessage(doc, senderId, senderName, message);
+                        addMessageBubble(doc, senderName, message, ts, isMine);
                     }
 
                     scrollMessages.post(() ->
                             scrollMessages.fullScroll(View.FOCUS_DOWN)
                     );
                 });
+    }
+
+    private boolean isMyMessage(String senderId, String senderUid, String senderName) {
+        if (senderId != null && (senderId.equalsIgnoreCase(currentCanonicalId) || senderId.equalsIgnoreCase(currentUserId))) {
+            return true;
+        }
+        if (senderUid != null && !senderUid.isEmpty() && senderUid.equals(currentSenderUid)) {
+            return true;
+        }
+        if (senderName != null && senderName.equalsIgnoreCase(currentUserName)) {
+            return true;
+        }
+        return false;
     }
 
     private void markMessageRead(DocumentSnapshot doc) {
@@ -274,91 +557,99 @@ public class ChatActivity extends AppCompatActivity {
                 .document(doc.getId())
                 .update(
                         "deliveredTo",
-                        FieldValue.arrayUnion(currentUserId),
+                        FieldValue.arrayUnion(currentCanonicalId),
                         "readBy",
-                        FieldValue.arrayUnion(currentUserId)
+                        FieldValue.arrayUnion(currentCanonicalId)
                 );
     }
 
-    private void addMessage(
+    private void addMessageBubble(
             DocumentSnapshot doc,
-            String senderId,
             String senderName,
-            String message
+            String message,
+            Timestamp timestamp,
+            boolean isMine
     ) {
-        boolean isMine = currentUserId.equals(senderId);
+        LinearLayout bubbleLayout = new LinearLayout(this);
+        bubbleLayout.setOrientation(LinearLayout.VERTICAL);
 
-        TextView messageView = new TextView(this);
-
-        if (isMine) {
-            messageView.setText(message);
-        } else {
-            String name = senderName == null ? "Faculty" : senderName;
-            messageView.setText(name + "\n" + message);
-        }
-
-        messageView.setTextSize(16);
-        messageView.setTextColor(Color.BLACK);
-        messageView.setPadding(24, 16, 24, 16);
-        messageView.setMaxWidth(
-                (int) (getResources().getDisplayMetrics().widthPixels * 0.75)
-        );
-
-        LinearLayout.LayoutParams params =
+        LinearLayout.LayoutParams bubbleParams =
                 new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                 );
+        bubbleParams.gravity = isMine ? Gravity.END : Gravity.START;
+        bubbleParams.setMargins(12, 6, 12, 6);
+        bubbleLayout.setLayoutParams(bubbleParams);
 
-        params.gravity = isMine ? Gravity.END : Gravity.START;
-        params.setMargins(8, 5, 8, 5);
-
-        messageView.setBackgroundResource(
-                isMine
-                        ? R.drawable.bg_message_sent
-                        : R.drawable.bg_message_received
+        bubbleLayout.setBackgroundResource(
+                isMine ? R.drawable.bg_message_sent : R.drawable.bg_message_received
         );
+        bubbleLayout.setPadding(28, 18, 28, 16);
 
-        messageView.setLayoutParams(params);
-        messageContainer.addView(messageView);
+        // Sender Name for received messages
+        if (!isMine) {
+            TextView nameView = new TextView(this);
+            nameView.setText(senderName != null ? senderName : recipientFacultyName);
+            nameView.setTextSize(12);
+            nameView.setTextColor(Color.parseColor("#1E3A8A"));
+            nameView.setTypeface(null, android.graphics.Typeface.BOLD);
+            nameView.setPadding(0, 0, 0, 4);
+            bubbleLayout.addView(nameView);
+        }
 
-        // Tick indicator for your own messages
+        // Message text
+        TextView messageView = new TextView(this);
+        messageView.setText(message);
+        messageView.setTextSize(15);
+        messageView.setTextColor(isMine ? Color.parseColor("#0F172A") : Color.parseColor("#0F172A"));
+        messageView.setMaxWidth((int) (getResources().getDisplayMetrics().widthPixels * 0.75));
+        bubbleLayout.addView(messageView);
+
+        // Bottom Row: Timestamp + Tick indicator (for sent)
+        LinearLayout metaRow = new LinearLayout(this);
+        metaRow.setOrientation(LinearLayout.HORIZONTAL);
+        metaRow.setGravity(Gravity.CENTER_VERTICAL | (isMine ? Gravity.END : Gravity.START));
+        metaRow.setPadding(0, 4, 0, 0);
+
+        TextView timeView = new TextView(this);
+        String formattedTime = "";
+        if (timestamp != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
+            formattedTime = sdf.format(timestamp.toDate());
+        } else {
+            SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
+            formattedTime = sdf.format(new Date());
+        }
+        timeView.setText(formattedTime);
+        timeView.setTextSize(11);
+        timeView.setTextColor(Color.parseColor("#64748B"));
+        metaRow.addView(timeView);
+
         if (isMine) {
-            ArrayList<String> deliveredTo =
-                    (ArrayList<String>) doc.get("deliveredTo");
-            ArrayList<String> readBy =
-                    (ArrayList<String>) doc.get("readBy");
+            ArrayList<?> deliveredTo = (ArrayList<?>) doc.get("deliveredTo");
+            ArrayList<?> readBy = (ArrayList<?>) doc.get("readBy");
 
-            boolean delivered = deliveredTo != null
-                    && deliveredTo.contains(selectedFacultyId);
-
-            boolean read = readBy != null
-                    && readBy.contains(selectedFacultyId);
+            boolean read = readBy != null && !readBy.isEmpty();
+            boolean delivered = deliveredTo != null && !deliveredTo.isEmpty();
 
             TextView tickView = new TextView(this);
-            tickView.setText(read ? "✓✓" : delivered ? "✓✓" : "✓");
-            tickView.setTextColor(
-                    read ? Color.BLUE : Color.GRAY
-            );
-            tickView.setTextSize(12);
-
-            LinearLayout.LayoutParams tickParams =
-                    new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-
-            tickParams.gravity = Gravity.END;
-            tickParams.setMargins(0, 0, 12, 4);
-
-            messageContainer.addView(tickView, tickParams);
+            tickView.setText(read ? " ✓✓" : delivered ? " ✓✓" : " ✓");
+            tickView.setTextColor(read ? Color.parseColor("#25D366") : Color.parseColor("#64748B"));
+            tickView.setTextSize(11);
+            tickView.setTypeface(null, android.graphics.Typeface.BOLD);
+            metaRow.addView(tickView);
         }
+
+        bubbleLayout.addView(metaRow);
+        messageContainer.addView(bubbleLayout);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         chatScreenActive = true;
+        markConversationReadInFirestore();
     }
 
     @Override
@@ -370,7 +661,6 @@ public class ChatActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
         if (messageListener != null) {
             messageListener.remove();
         }

@@ -1,15 +1,23 @@
-
 package com.example.deptflow.communication;
 
-import android.content.Intent;
+import android.Manifest;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -18,57 +26,46 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.deptflow.R;
 import com.example.deptflow.auth.AuthManager;
 import com.example.deptflow.communication.adapters.ReminderAdapter;
-import com.example.deptflow.communication.models.DiscussionTask;
-import com.example.deptflow.communication.models.TaskReminder;
+import com.example.deptflow.communication.models.FacultyDirectory;
+import com.example.deptflow.communication.models.FacultyReminder;
+import com.example.deptflow.communication.reminders.ReminderScheduler;
 import com.example.deptflow.feature.faculty.models.FacultyUser;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.SetOptions;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
+/**
+ * RemindersActivity — Full management of personal & task-assigned Faculty Reminders:
+ * Creation, Editing, Deletion, Completion toggling, Real-time Firestore sync,
+ * and Android AlarmManager system notification scheduling.
+ */
 public class RemindersActivity extends AppCompatActivity
-        implements ReminderAdapter.OnReminderClickListener {
+        implements ReminderAdapter.OnReminderActionListener {
 
     private static final String TAG = "RemindersActivity";
 
     private enum FilterMode {
-        ALL, OVERDUE, TOMORROW, UPCOMING
+        ALL, UPCOMING, COMPLETED
     }
-
-    private static final List<String> DEPARTMENT_FACULTY =
-            Arrays.asList(
-                    "Dr. R. Vijayalakshmi",
-                    "Dr. R. Raja Sudharsan",
-                    "Dr. K. M. Alaaudeen",
-                    "Dr. T. Sarnya",
-                    "Mrs. M. Prabha",
-                    "Mrs. P. Saraswathi",
-                    "Mr. S. Jegadeesan",
-                    "Mrs. A. Meena",
-                    "Dr. T. Venkatesh Kanna",
-                    "Mrs. M. Ishvarya",
-                    "Mrs. R. Nancy Deborah",
-                    "Mrs. C. Manjula Devi",
-                    "Mrs. A. Vinora",
-                    "Mr. A. Srinivasan",
-                    "Mr. P. KalyanaKumar",
-                    "Ms. G. Sivakarthi",
-                    "Mrs. M. Soundarya",
-                    "Mrs. J. John Shiny",
-                    "Mr. R. Umesh",
-                    "Mrs. A. Periya Nayaki",
-                    "Mrs. A. Elavarasi",
-                    "Dr. S. Esakki Muthu",
-                    "Mr. K. Loganathan"
-            );
 
     private RecyclerView rvReminders;
     private ProgressBar pbLoadingReminders;
@@ -76,29 +73,40 @@ public class RemindersActivity extends AppCompatActivity
     private TextView tvEmptyTitle;
     private TextView tvEmptySubtitle;
     private ImageButton ibBackReminders;
+    private ExtendedFloatingActionButton fabAddReminder;
 
     private TextView chipAll;
-    private TextView chipOverdue;
-    private TextView chipTomorrow;
     private TextView chipUpcoming;
+    private TextView chipCompleted;
 
     private ReminderAdapter adapter;
 
-    private final List<TaskReminder> displayedReminders =
-            new ArrayList<>();
-
-    private final List<TaskReminder> allReminders =
-            new ArrayList<>();
+    private final List<FacultyReminder> allReminders = new ArrayList<>();
+    private final List<FacultyReminder> displayedReminders = new ArrayList<>();
 
     private FilterMode currentFilter = FilterMode.ALL;
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
-    private ListenerRegistration tasksListener;
+    private ListenerRegistration remindersListener;
 
     private String currentUid = "";
-    private String currentName = "";
-    private String currentUserRole = "FACULTY";
+    private String currentUserId = "";
+    private String currentCanonicalId = "";
+    private String currentName = "Faculty";
+    private final Set<String> myIdentifiers = new HashSet<>();
+
+    // Permission launcher for Android 13+ Notification permission
+    private final ActivityResultLauncher<String> requestNotificationPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    Log.d(TAG, "POST_NOTIFICATIONS permission granted.");
+                } else {
+                    Toast.makeText(this,
+                            "Notification permission denied. Reminders will be saved, but audio alerts won't pop up.",
+                            Toast.LENGTH_LONG).show();
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,19 +117,15 @@ public class RemindersActivity extends AppCompatActivity
         loadCurrentUserInfo();
         setupRecyclerView();
         setupFilterChips();
+        checkNotificationPermissions();
 
-        if (auth.getCurrentUser() == null) {
-            Toast.makeText(
-                    this,
-                    "Please login first",
-                    Toast.LENGTH_LONG
-            ).show();
-
+        if (currentUid.isEmpty() && currentUserId.isEmpty() && currentCanonicalId.isEmpty()) {
+            Toast.makeText(this, "Please log in first", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
 
-        listenToFirestoreTasks();
+        listenToFacultyReminders();
     }
 
     private void initViews() {
@@ -131,89 +135,104 @@ public class RemindersActivity extends AppCompatActivity
         tvEmptyTitle = findViewById(R.id.tvEmptyTitle);
         tvEmptySubtitle = findViewById(R.id.tvEmptySubtitle);
         ibBackReminders = findViewById(R.id.ibBackReminders);
+        fabAddReminder = findViewById(R.id.fabAddReminder);
 
         chipAll = findViewById(R.id.chipAll);
-        chipOverdue = findViewById(R.id.chipOverdue);
-        chipTomorrow = findViewById(R.id.chipTomorrow);
         chipUpcoming = findViewById(R.id.chipUpcoming);
+        chipCompleted = findViewById(R.id.chipCompleted);
 
         if (ibBackReminders != null) {
             ibBackReminders.setOnClickListener(v -> finish());
+        }
+
+        if (fabAddReminder != null) {
+            fabAddReminder.setOnClickListener(v -> showAddEditReminderDialog(null));
         }
     }
 
     private void loadCurrentUserInfo() {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        myIdentifiers.clear();
 
         FirebaseUser firebaseUser = auth.getCurrentUser();
-
         if (firebaseUser != null) {
             currentUid = firebaseUser.getUid();
-
-            if (firebaseUser.getDisplayName() != null
-                    && !firebaseUser.getDisplayName()
-                    .trim().isEmpty()) {
-
-                currentName =
-                        firebaseUser.getDisplayName().trim();
+            addIdentifier(currentUid);
+            if (firebaseUser.getEmail() != null) {
+                addIdentifier(firebaseUser.getEmail());
+            }
+            if (firebaseUser.getDisplayName() != null && !firebaseUser.getDisplayName().trim().isEmpty()) {
+                currentName = firebaseUser.getDisplayName().trim();
+                addIdentifier(currentName);
             }
         }
 
-        FacultyUser cachedUser =
-                AuthManager.getInstance(this).getCurrentUser();
-
+        FacultyUser cachedUser = AuthManager.getInstance(this).getCurrentUser();
         if (cachedUser != null) {
-            if (cachedUser.getName() != null
-                    && !cachedUser.getName().trim().isEmpty()) {
-
+            if (cachedUser.getUserId() != null && !cachedUser.getUserId().trim().isEmpty()) {
+                currentUserId = cachedUser.getUserId().trim();
+                addIdentifier(currentUserId);
+            }
+            if (cachedUser.getName() != null && !cachedUser.getName().trim().isEmpty()) {
                 currentName = cachedUser.getName().trim();
+                addIdentifier(currentName);
+            }
+            if (cachedUser.getEmail() != null && !cachedUser.getEmail().trim().isEmpty()) {
+                addIdentifier(cachedUser.getEmail());
             }
 
-            if (cachedUser.getRole() != null
-                    && !cachedUser.getRole().trim().isEmpty()) {
-
-                currentUserRole =
-                        cachedUser.getRole().trim().toUpperCase();
+            FacultyUser canonical = FacultyDirectory.resolveCanonicalFaculty(cachedUser);
+            if (canonical != null) {
+                currentCanonicalId = canonical.getUserId();
+                addIdentifier(currentCanonicalId);
+                addIdentifier(canonical.getName());
+                addIdentifier(canonical.getEmail());
             }
         }
 
-        Log.d(TAG,
-                "User UID=" + currentUid
-                        + ", Name=" + currentName
-                        + ", Role=" + currentUserRole);
+        if (currentCanonicalId.isEmpty() && !currentName.isEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentName);
+            if (!currentCanonicalId.isEmpty()) addIdentifier(currentCanonicalId);
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentUserId.isEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserId);
+            if (!currentCanonicalId.isEmpty()) addIdentifier(currentCanonicalId);
+        }
+
+        if (currentCanonicalId.isEmpty() && !currentUid.isEmpty()) {
+            currentCanonicalId = currentUid;
+            addIdentifier(currentCanonicalId);
+        }
+
+        Log.d(TAG, "Current faculty info: UID=" + currentUid
+                + ", CanonicalId=" + currentCanonicalId
+                + ", Name=" + currentName
+                + ", Identifiers=" + myIdentifiers);
+    }
+
+    private void addIdentifier(String val) {
+        if (val == null || val.trim().isEmpty()) return;
+        String trimmed = val.trim();
+        myIdentifiers.add(trimmed.toLowerCase(Locale.ROOT));
+        myIdentifiers.add(trimmed);
+        String clean = trimmed.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
+        if (!clean.isEmpty()) {
+            myIdentifiers.add(clean);
+        }
     }
 
     private void setupRecyclerView() {
-        adapter = new ReminderAdapter(
-                this,
-                displayedReminders,
-                this
-        );
-
-        rvReminders.setLayoutManager(
-                new LinearLayoutManager(this)
-        );
-
+        adapter = new ReminderAdapter(this, this);
+        rvReminders.setLayoutManager(new LinearLayoutManager(this));
         rvReminders.setAdapter(adapter);
     }
 
     private void setupFilterChips() {
-        chipAll.setOnClickListener(
-                v -> setFilter(FilterMode.ALL)
-        );
-
-        chipOverdue.setOnClickListener(
-                v -> setFilter(FilterMode.OVERDUE)
-        );
-
-        chipTomorrow.setOnClickListener(
-                v -> setFilter(FilterMode.TOMORROW)
-        );
-
-        chipUpcoming.setOnClickListener(
-                v -> setFilter(FilterMode.UPCOMING)
-        );
+        chipAll.setOnClickListener(v -> setFilter(FilterMode.ALL));
+        chipUpcoming.setOnClickListener(v -> setFilter(FilterMode.UPCOMING));
+        chipCompleted.setOnClickListener(v -> setFilter(FilterMode.COMPLETED));
 
         updateFilterChipStyles();
     }
@@ -226,407 +245,182 @@ public class RemindersActivity extends AppCompatActivity
 
     private void updateFilterChipStyles() {
         resetChip(chipAll);
-        resetChip(chipOverdue);
-        resetChip(chipTomorrow);
         resetChip(chipUpcoming);
+        resetChip(chipCompleted);
 
         TextView activeChip;
-
         switch (currentFilter) {
-            case OVERDUE:
-                activeChip = chipOverdue;
-                break;
-
-            case TOMORROW:
-                activeChip = chipTomorrow;
-                break;
-
             case UPCOMING:
                 activeChip = chipUpcoming;
                 break;
-
+            case COMPLETED:
+                activeChip = chipCompleted;
+                break;
             case ALL:
             default:
                 activeChip = chipAll;
                 break;
         }
 
-        activeChip.setBackgroundResource(
-                R.drawable.bg_chip_selected
-        );
-
-        activeChip.setTextColor(
-                ContextCompat.getColor(
-                        this,
-                        R.color.text_on_primary
-                )
-        );
+        activeChip.setBackgroundResource(R.drawable.bg_chip_selected);
+        activeChip.setTextColor(ContextCompat.getColor(this, R.color.text_on_primary));
     }
 
     private void resetChip(TextView chip) {
-        chip.setBackgroundResource(
-                R.drawable.bg_chip_unselected
-        );
-
-        chip.setTextColor(
-                ContextCompat.getColor(
-                        this,
-                        R.color.text_secondary
-                )
-        );
+        if (chip != null) {
+            chip.setBackgroundResource(R.drawable.bg_chip_unselected);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
+        }
     }
 
-    private void listenToFirestoreTasks() {
+    private void checkNotificationPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
+    }
+
+    private void listenToFacultyReminders() {
         pbLoadingReminders.setVisibility(View.VISIBLE);
 
-        tasksListener = db.collection("task_assignments")
+        remindersListener = db.collection("faculty_reminders")
                 .addSnapshotListener((snapshots, error) -> {
-
-                    if (isFinishing() || isDestroyed()) {
-                        return;
-                    }
+                    if (isFinishing() || isDestroyed()) return;
 
                     pbLoadingReminders.setVisibility(View.GONE);
 
                     if (error != null) {
-                        Log.e(TAG,
-                                "Error listening to task_assignments",
-                                error);
-
-                        Toast.makeText(
-                                RemindersActivity.this,
-                                "Error loading reminders: "
-                                        + error.getMessage(),
-                                Toast.LENGTH_LONG
-                        ).show();
-
+                        Log.e(TAG, "Error listening to faculty_reminders: " + error.getMessage(), error);
+                        if (error.getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                            if (layoutEmptyReminders != null && tvEmptyTitle != null && tvEmptySubtitle != null) {
+                                layoutEmptyReminders.setVisibility(View.VISIBLE);
+                                rvReminders.setVisibility(View.GONE);
+                                tvEmptyTitle.setText("Permission Denied");
+                                tvEmptySubtitle.setText("Missing or insufficient Firestore permissions for 'faculty_reminders'. Please check your Firebase Auth session or Firestore security rules.");
+                            }
+                            Toast.makeText(RemindersActivity.this, "PERMISSION_DENIED: Check Firestore rules or login session", Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(RemindersActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
                         return;
                     }
 
-                    if (snapshots == null) {
-                        return;
-                    }
+                    if (snapshots == null) return;
 
-                    boolean isHod =
-                            "HOD".equalsIgnoreCase(currentUserRole);
+                    allReminders.clear();
+                    int upcomingCount = 0;
+                    int completedCount = 0;
 
-                    Map<String, DiscussionTask> uniqueTasksMap =
-                            new LinkedHashMap<>();
+                    for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                        String docFacultyId = doc.getString("facultyId");
+                        String docFacultyUid = doc.getString("facultyUid");
+                        String docFacultyName = doc.getString("facultyName");
 
-                    for (DocumentSnapshot doc :
-                            snapshots.getDocuments()) {
+                        boolean belongsToMe = isBelongsToMe(docFacultyId, docFacultyUid, docFacultyName);
+                        if (!belongsToMe) continue;
 
                         try {
-                            DiscussionTask task =
-                                    parseTaskDocument(doc);
+                            String reminderId = doc.getId();
+                            String title = doc.getString("title");
+                            String description = doc.getString("description");
 
-                            if (task == null) {
-                                continue;
-                            }
+                            Long scheduledTime = doc.getLong("scheduledDateTime");
+                            String scheduledDateStr = doc.getString("scheduledDateStr");
+                            String scheduledTimeStr = doc.getString("scheduledTimeStr");
+                            Long createdAt = doc.getLong("createdAt");
+                            Boolean isCompleted = doc.getBoolean("isCompleted");
+                            String status = doc.getString("status");
 
-                            String groupId = task.getId();
+                            FacultyReminder reminder = new FacultyReminder(
+                                    reminderId,
+                                    docFacultyId != null ? docFacultyId : currentCanonicalId,
+                                    docFacultyUid != null ? docFacultyUid : currentUid,
+                                    docFacultyName != null ? docFacultyName : currentName,
+                                    title != null ? title : "Reminder",
+                                    description != null ? description : "",
+                                    scheduledTime != null ? scheduledTime : 0L,
+                                    scheduledDateStr != null ? scheduledDateStr : "",
+                                    scheduledTimeStr != null ? scheduledTimeStr : "",
+                                    createdAt != null ? createdAt : System.currentTimeMillis(),
+                                    isCompleted != null ? isCompleted : false,
+                                    status != null ? status : (Boolean.TRUE.equals(isCompleted) ? "COMPLETED" : "PENDING")
+                            );
 
-                            if (groupId == null
-                                    || groupId.trim().isEmpty()) {
-                                groupId = doc.getId();
-                            }
+                            allReminders.add(reminder);
 
-                            /*
-                             * Multiple documents may represent
-                             * one task assigned to several faculty.
-                             * Keep one reminder per group task.
-                             */
-                            if (!uniqueTasksMap.containsKey(groupId)) {
-                                uniqueTasksMap.put(groupId, task);
+                            if (reminder.isCompleted()) {
+                                completedCount++;
+                            } else {
+                                upcomingCount++;
+                                // Auto-schedule alarm if upcoming and future
+                                if (reminder.getScheduledDateTime() > System.currentTimeMillis()) {
+                                    ReminderScheduler.scheduleReminder(this, reminder);
+                                }
                             }
 
                         } catch (Exception e) {
-                            Log.e(TAG,
-                                    "Failed parsing task: "
-                                            + doc.getId(),
-                                    e);
+                            Log.w(TAG, "Error parsing reminder doc " + doc.getId(), e);
                         }
                     }
 
-                    allReminders.clear();
-
-                    int overdueCount = 0;
-                    int tomorrowCount = 0;
-                    int upcomingCount = 0;
-
-                    for (DiscussionTask task :
-                            uniqueTasksMap.values()) {
-
-                        boolean assignedToUser =
-                                task.isAssignedToUser(
-                                        currentUid,
-                                        currentName,
-                                        DEPARTMENT_FACULTY
-                                );
-
-                        if (!isHod && !assignedToUser) {
-                            continue;
-                        }
-
-                        TaskReminder reminder =
-                                TaskReminder.fromTask(task);
-
-                        if (reminder.getCategory()
-                                == TaskReminder.UrgencyCategory.COMPLETED) {
-                            continue;
-                        }
-
-                        allReminders.add(reminder);
-
-                        switch (reminder.getCategory()) {
-                            case OVERDUE:
-                                overdueCount++;
-                                break;
-
-                            case DUE_TODAY:
-                            case DUE_TOMORROW:
-                                tomorrowCount++;
-                                break;
-
-                            case UPCOMING:
-                                upcomingCount++;
-                                break;
-
-                            case COMPLETED:
-                            default:
-                                break;
-                        }
-                    }
-
-                    chipAll.setText(
-                            "All (" + allReminders.size() + ")"
-                    );
-
-                    chipOverdue.setText(
-                            "⚠️ Overdue (" + overdueCount + ")"
-                    );
-
-                    chipTomorrow.setText(
-                            "⏳ Due Tomorrow (" + tomorrowCount + ")"
-                    );
-
-                    chipUpcoming.setText(
-                            "📅 Upcoming (" + upcomingCount + ")"
-                    );
+                    chipAll.setText("All (" + allReminders.size() + ")");
+                    chipUpcoming.setText("Upcoming (" + upcomingCount + ")");
+                    chipCompleted.setText("Completed (" + completedCount + ")");
 
                     applyFilter();
                 });
     }
 
-    private DiscussionTask parseTaskDocument(
-            DocumentSnapshot doc) {
-
-        String taskId = firstNonEmpty(
-                doc.getString("groupTaskId"),
-                doc.getString("taskId"),
-                doc.getString("id"),
-                doc.getId()
-        );
-
-        String title = firstNonEmpty(
-                doc.getString("taskTitle"),
-                doc.getString("title")
-        );
-
-        if (title.isEmpty()) {
-            Log.w(TAG,
-                    "Skipping task without title: "
-                            + doc.getId());
-            return null;
+    private boolean isBelongsToMe(String facultyId, String facultyUid, String facultyName) {
+        if (facultyId != null && (myIdentifiers.contains(facultyId.trim().toLowerCase(Locale.ROOT))
+                || facultyId.equalsIgnoreCase(currentCanonicalId)
+                || facultyId.equalsIgnoreCase(currentUserId))) {
+            return true;
         }
-
-        String description =
-                safeString(doc.getString("description"));
-
-        String deadline =
-                safeString(doc.getString("deadline"));
-
-        String priority = firstNonEmpty(
-                doc.getString("priority"),
-                "Medium"
-        );
-
-        String status = firstNonEmpty(
-                doc.getString("status"),
-                "Pending"
-        );
-
-        String assignedTo =
-                safeString(doc.getString("assignedTo"));
-
-        String faculty =
-                safeString(doc.getString("faculty"));
-
-        List<String> assignedFaculty =
-                new ArrayList<>();
-
-        /*
-         * HOD field: allAssignedFaculty
-         */
-        addStringList(
-                assignedFaculty,
-                doc.get("allAssignedFaculty")
-        );
-
-        /*
-         * Alternative fields used by other versions.
-         */
-        addStringList(
-                assignedFaculty,
-                doc.get("assignedFaculty")
-        );
-
-        /*
-         * HOD per-faculty field.
-         */
-        addIfMissing(assignedFaculty, assignedTo);
-        addIfMissing(assignedFaculty, faculty);
-
-        List<String> assignedUids =
-                new ArrayList<>();
-
-        addStringList(
-                assignedUids,
-                doc.get("assignedFacultyUids")
-        );
-
-        /*
-         * Some task documents may contain a single UID.
-         */
-        addIfMissing(
-                assignedUids,
-                safeString(doc.getString("assignedToUid"))
-        );
-
-        long timestamp = 0L;
-
-        Long timestampValue = doc.getLong("timestamp");
-
-        if (timestampValue != null) {
-            timestamp = timestampValue;
+        if (facultyUid != null && !facultyUid.isEmpty() && facultyUid.equals(currentUid)) {
+            return true;
         }
-
-        return new DiscussionTask(
-                taskId,
-                title,
-                description,
-                deadline,
-                priority,
-                status,
-                assignedFaculty,
-                assignedUids,
-                assignedFaculty.size(),
-                firstNonEmpty(faculty, assignedTo),
-                timestamp
-        );
-    }
-
-    private void addStringList(
-            List<String> destination,
-            Object value) {
-
-        if (!(value instanceof List<?>)) {
-            return;
-        }
-
-        for (Object item : (List<?>) value) {
-            if (item != null) {
-                addIfMissing(
-                        destination,
-                        item.toString().trim()
-                );
+        if (facultyName != null) {
+            String clean = facultyName.trim().toLowerCase(Locale.ROOT);
+            if (myIdentifiers.contains(clean) || clean.equalsIgnoreCase(currentName)) return true;
+            FacultyUser resolved = FacultyDirectory.resolveByNameOrId(facultyName);
+            if (resolved != null && myIdentifiers.contains(resolved.getUserId().toLowerCase(Locale.ROOT))) {
+                return true;
             }
         }
-    }
-
-    private void addIfMissing(
-            List<String> list,
-            String value) {
-
-        if (value == null || value.trim().isEmpty()) {
-            return;
-        }
-
-        String cleanValue = value.trim();
-
-        if (!list.contains(cleanValue)) {
-            list.add(cleanValue);
-        }
-    }
-
-    private String safeString(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private String firstNonEmpty(String... values) {
-        for (String value : values) {
-            if (value != null
-                    && !value.trim().isEmpty()) {
-                return value.trim();
-            }
-        }
-
-        return "";
+        return false;
     }
 
     private void applyFilter() {
-        List<TaskReminder> filtered =
-                new ArrayList<>();
+        displayedReminders.clear();
 
-        for (TaskReminder reminder : allReminders) {
+        for (FacultyReminder r : allReminders) {
             switch (currentFilter) {
-                case OVERDUE:
-                    if (reminder.getCategory()
-                            == TaskReminder.UrgencyCategory.OVERDUE) {
-                        filtered.add(reminder);
-                    }
-                    break;
-
-                case TOMORROW:
-                    if (reminder.getCategory()
-                            == TaskReminder.UrgencyCategory.DUE_TOMORROW
-                            || reminder.getCategory()
-                            == TaskReminder.UrgencyCategory.DUE_TODAY) {
-
-                        filtered.add(reminder);
-                    }
-                    break;
-
                 case UPCOMING:
-                    if (reminder.getCategory()
-                            == TaskReminder.UrgencyCategory.UPCOMING) {
-                        filtered.add(reminder);
-                    }
+                    if (!r.isCompleted()) displayedReminders.add(r);
                     break;
-
+                case COMPLETED:
+                    if (r.isCompleted()) displayedReminders.add(r);
+                    break;
                 case ALL:
                 default:
-                    filtered.add(reminder);
+                    displayedReminders.add(r);
                     break;
             }
         }
 
-        Collections.sort(filtered, (r1, r2) -> {
-            int rank1 = getCategoryRank(r1.getCategory());
-            int rank2 = getCategoryRank(r2.getCategory());
-
-            if (rank1 != rank2) {
-                return Integer.compare(rank1, rank2);
+        // Sort: upcoming by scheduled date ascending, completed by created date descending
+        Collections.sort(displayedReminders, (a, b) -> {
+            if (!a.isCompleted() && !b.isCompleted()) {
+                return Long.compare(a.getScheduledDateTime(), b.getScheduledDateTime());
             }
-
-            return Long.compare(
-                    r1.getDeadlineTimestamp(),
-                    r2.getDeadlineTimestamp()
-            );
+            if (a.isCompleted() && b.isCompleted()) {
+                return Long.compare(b.getCreatedAt(), a.getCreatedAt());
+            }
+            return a.isCompleted() ? 1 : -1;
         });
-
-        displayedReminders.clear();
-        displayedReminders.addAll(filtered);
 
         adapter.updateReminders(displayedReminders);
 
@@ -635,114 +429,211 @@ public class RemindersActivity extends AppCompatActivity
             rvReminders.setVisibility(View.GONE);
 
             switch (currentFilter) {
-                case OVERDUE:
-                    tvEmptyTitle.setText(
-                            "No Overdue Tasks! 🎉"
-                    );
-                    tvEmptySubtitle.setText(
-                            "Great job! None of your assigned tasks are past deadline."
-                    );
-                    break;
-
-                case TOMORROW:
-                    tvEmptyTitle.setText(
-                            "No Tasks Due Tomorrow"
-                    );
-                    tvEmptySubtitle.setText(
-                            "You have no deadlines approaching within the next 24-48 hours."
-                    );
-                    break;
-
                 case UPCOMING:
-                    tvEmptyTitle.setText(
-                            "No Upcoming Deadlines"
-                    );
-                    tvEmptySubtitle.setText(
-                            "No future task deadlines found."
-                    );
+                    tvEmptyTitle.setText("No Upcoming Reminders");
+                    tvEmptySubtitle.setText("You're all caught up! Tap '+' to set a new deadline reminder.");
                     break;
-
+                case COMPLETED:
+                    tvEmptyTitle.setText("No Completed Reminders");
+                    tvEmptySubtitle.setText("Check off upcoming reminders as tasks are finished.");
+                    break;
                 case ALL:
                 default:
-                    tvEmptyTitle.setText(
-                            "No Active Reminders"
-                    );
-                    tvEmptySubtitle.setText(
-                            "Tasks assigned to you will appear here with live deadline countdowns."
-                    );
+                    tvEmptyTitle.setText("No Reminders Found");
+                    tvEmptySubtitle.setText("Never miss an HOD task deadline. Tap '+' to create your first reminder.");
                     break;
             }
-
         } else {
             layoutEmptyReminders.setVisibility(View.GONE);
             rvReminders.setVisibility(View.VISIBLE);
         }
     }
 
-    private int getCategoryRank(
-            TaskReminder.UrgencyCategory category) {
+    private void showAddEditReminderDialog(FacultyReminder existingReminder) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_edit_reminder, null);
+        builder.setView(dialogView);
 
-        switch (category) {
-            case OVERDUE:
-                return 1;
-
-            case DUE_TODAY:
-                return 2;
-
-            case DUE_TOMORROW:
-                return 3;
-
-            case UPCOMING:
-                return 4;
-
-            case COMPLETED:
-            default:
-                return 5;
+        AlertDialog dialog = builder.create();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
+
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tvDialogTitle);
+        TextInputLayout tilTitle = dialogView.findViewById(R.id.tilReminderTitle);
+        TextInputEditText etTitle = dialogView.findViewById(R.id.etReminderTitle);
+        TextInputEditText etDesc = dialogView.findViewById(R.id.etReminderDesc);
+        MaterialButton btnPickDate = dialogView.findViewById(R.id.btnPickDate);
+        MaterialButton btnPickTime = dialogView.findViewById(R.id.btnPickTime);
+        LinearLayout layoutSchedulePreview = dialogView.findViewById(R.id.layoutSchedulePreview);
+        TextView tvSchedulePreview = dialogView.findViewById(R.id.tvSchedulePreview);
+        MaterialButton btnCancel = dialogView.findViewById(R.id.btnCancelReminder);
+        MaterialButton btnSave = dialogView.findViewById(R.id.btnSaveReminder);
+
+        final Calendar selectedCalendar = Calendar.getInstance();
+
+        SimpleDateFormat dateFmt = new SimpleDateFormat("dd MMM yyyy", Locale.getDefault());
+        SimpleDateFormat timeFmt = new SimpleDateFormat("hh:mm a", Locale.getDefault());
+
+        if (existingReminder != null) {
+            tvDialogTitle.setText("Edit Reminder");
+            etTitle.setText(existingReminder.getTitle());
+            etDesc.setText(existingReminder.getDescription());
+            if (existingReminder.getScheduledDateTime() > 0) {
+                selectedCalendar.setTimeInMillis(existingReminder.getScheduledDateTime());
+            }
+        } else {
+            tvDialogTitle.setText("New Faculty Reminder");
+            selectedCalendar.add(Calendar.HOUR_OF_DAY, 2);
+        }
+
+        btnPickDate.setText(dateFmt.format(selectedCalendar.getTime()));
+        btnPickTime.setText(timeFmt.format(selectedCalendar.getTime()));
+
+        if (layoutSchedulePreview != null && tvSchedulePreview != null) {
+            layoutSchedulePreview.setVisibility(View.VISIBLE);
+            tvSchedulePreview.setText("Scheduled for: " + dateFmt.format(selectedCalendar.getTime()) + " at " + timeFmt.format(selectedCalendar.getTime()));
+        }
+
+        btnPickDate.setOnClickListener(v -> {
+            DatePickerDialog dpd = new DatePickerDialog(
+                    this,
+                    (view, year, month, dayOfMonth) -> {
+                        selectedCalendar.set(Calendar.YEAR, year);
+                        selectedCalendar.set(Calendar.MONTH, month);
+                        selectedCalendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
+                        btnPickDate.setText(dateFmt.format(selectedCalendar.getTime()));
+                        if (tvSchedulePreview != null) {
+                            tvSchedulePreview.setText("Scheduled for: " + dateFmt.format(selectedCalendar.getTime()) + " at " + timeFmt.format(selectedCalendar.getTime()));
+                        }
+                    },
+                    selectedCalendar.get(Calendar.YEAR),
+                    selectedCalendar.get(Calendar.MONTH),
+                    selectedCalendar.get(Calendar.DAY_OF_MONTH)
+            );
+            dpd.getDatePicker().setMinDate(System.currentTimeMillis() - 1000);
+            dpd.show();
+        });
+
+        btnPickTime.setOnClickListener(v -> {
+            TimePickerDialog tpd = new TimePickerDialog(
+                    this,
+                    (view, hourOfDay, minute) -> {
+                        selectedCalendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
+                        selectedCalendar.set(Calendar.MINUTE, minute);
+                        selectedCalendar.set(Calendar.SECOND, 0);
+                        btnPickTime.setText(timeFmt.format(selectedCalendar.getTime()));
+                        if (tvSchedulePreview != null) {
+                            tvSchedulePreview.setText("Scheduled for: " + dateFmt.format(selectedCalendar.getTime()) + " at " + timeFmt.format(selectedCalendar.getTime()));
+                        }
+                    },
+                    selectedCalendar.get(Calendar.HOUR_OF_DAY),
+                    selectedCalendar.get(Calendar.MINUTE),
+                    false
+            );
+            tpd.show();
+        });
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+
+        btnSave.setOnClickListener(v -> {
+            String title = etTitle.getText() != null ? etTitle.getText().toString().trim() : "";
+            String desc = etDesc.getText() != null ? etDesc.getText().toString().trim() : "";
+            String dateStr = dateFmt.format(selectedCalendar.getTime());
+            String timeStr = timeFmt.format(selectedCalendar.getTime());
+
+            if (title.isEmpty()) {
+                tilTitle.setError("Title is required");
+                return;
+            }
+            tilTitle.setError(null);
+
+            long scheduledMillis = selectedCalendar.getTimeInMillis();
+            String reminderId = (existingReminder != null)
+                    ? existingReminder.getReminderId()
+                    : "rem_" + System.currentTimeMillis();
+
+            Map<String, Object> reminderMap = new HashMap<>();
+            reminderMap.put("reminderId", reminderId);
+            reminderMap.put("facultyId", !currentCanonicalId.isEmpty() ? currentCanonicalId : currentUserId);
+            reminderMap.put("facultyUid", currentUid);
+            reminderMap.put("facultyName", currentName);
+            reminderMap.put("title", title);
+            reminderMap.put("description", desc);
+            reminderMap.put("scheduledDateTime", scheduledMillis);
+            reminderMap.put("scheduledDateStr", dateStr);
+            reminderMap.put("scheduledTimeStr", timeStr);
+            reminderMap.put("createdAt", (existingReminder != null) ? existingReminder.getCreatedAt() : System.currentTimeMillis());
+            reminderMap.put("isCompleted", (existingReminder != null) && existingReminder.isCompleted());
+            reminderMap.put("status", (existingReminder != null && existingReminder.isCompleted()) ? "COMPLETED" : "PENDING");
+
+            db.collection("faculty_reminders").document(reminderId)
+                    .set(reminderMap, SetOptions.merge())
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(RemindersActivity.this, "Reminder saved successfully", Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(RemindersActivity.this, "Failed to save: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    });
+        });
+
+        dialog.show();
     }
 
     @Override
-    public void onDiscussClick(TaskReminder reminder) {
-        Intent intent = new Intent(
-                RemindersActivity.this,
-                TaskDiscussionChatActivity.class
-        );
+    public void onToggleCompleted(FacultyReminder reminder, boolean isCompleted) {
+        if (reminder == null) return;
 
-        intent.putExtra(
-                "EXTRA_TASK_ID",
-                reminder.getTaskId()
-        );
+        Map<String, Object> update = new HashMap<>();
+        update.put("isCompleted", isCompleted);
+        update.put("status", isCompleted ? "COMPLETED" : "PENDING");
 
-        intent.putExtra(
-                "EXTRA_TASK_TITLE",
-                reminder.getTitle()
-        );
+        db.collection("faculty_reminders").document(reminder.getReminderId())
+                .update(update)
+                .addOnSuccessListener(aVoid -> {
+                    if (isCompleted) {
+                        ReminderScheduler.cancelReminder(this, reminder.getReminderId());
+                        // Play a short pleasant confirmation tone
+                        try {
+                            android.media.ToneGenerator toneGen = new android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 80);
+                            toneGen.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 200);
+                        } catch (Exception ignored) {}
+                    } else if (reminder.getScheduledDateTime() > System.currentTimeMillis()) {
+                        ReminderScheduler.scheduleReminder(this, reminder);
+                    }
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Could not update status", Toast.LENGTH_SHORT).show());
+    }
 
-        intent.putExtra(
-                "EXTRA_TASK_DEADLINE",
-                reminder.getDeadline()
-        );
+    @Override
+    public void onEditReminder(FacultyReminder reminder) {
+        showAddEditReminderDialog(reminder);
+    }
 
-        intent.putExtra(
-                "EXTRA_TASK_PRIORITY",
-                reminder.getPriority()
-        );
+    @Override
+    public void onDeleteReminder(FacultyReminder reminder) {
+        if (reminder == null) return;
 
-        intent.putExtra(
-                "taskName",
-                reminder.getTitle()
-        );
-
-        startActivity(intent);
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Reminder")
+                .setMessage("Are you sure you want to delete '" + reminder.getTitle() + "'?")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    ReminderScheduler.cancelReminder(this, reminder.getReminderId());
+                    db.collection("faculty_reminders").document(reminder.getReminderId())
+                            .delete()
+                            .addOnSuccessListener(aVoid -> Toast.makeText(this, "Reminder deleted", Toast.LENGTH_SHORT).show())
+                            .addOnFailureListener(e -> Toast.makeText(this, "Failed to delete: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
-        if (tasksListener != null) {
-            tasksListener.remove();
-            tasksListener = null;
+        if (remindersListener != null) {
+            remindersListener.remove();
         }
     }
 }
