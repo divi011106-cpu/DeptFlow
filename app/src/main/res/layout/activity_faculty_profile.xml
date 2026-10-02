@@ -62,14 +62,21 @@
                 android:orientation="vertical">
 
                 <FrameLayout
+                    android:id="@+id/layout_profile_avatar"
                     android:layout_width="80dp"
                     android:layout_height="80dp"
-                    android:background="@drawable/bg_role_pill">
+                    android:background="@drawable/bg_role_pill"
+                    android:clipToOutline="true"
+                    android:clickable="true"
+                    android:focusable="true">
 
                     <ImageView
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
+                        android:id="@+id/iv_profile_avatar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
                         android:layout_gravity="center"
+                        android:padding="16dp"
+                        android:scaleType="fitCenter"
                         android:src="@drawable/ic_person"
                         app:tint="#FFFFFF" />
                 </FrameLayout>
@@ -138,6 +145,21 @@
                         android:textSize="15sp"
                         android:textStyle="bold"
                         tools:text="Dr. Sarah Jenkins" />
+
+                    <EditText
+                        android:id="@+id/et_profile_fullname"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input_field"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp"
+                        android:inputType="textPersonName|textCapWords"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        tools:text="Dr. Sarah Jenkins" />
                 </LinearLayout>
 
                 <View
@@ -167,6 +189,20 @@
                         android:layout_marginTop="4dp"
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
+                        tools:text="sarah.jenkins@deptflow.edu" />
+
+                    <EditText
+                        android:id="@+id/et_profile_email"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input_field"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp"
+                        android:inputType="textEmailAddress"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:visibility="gone"
                         tools:text="sarah.jenkins@deptflow.edu" />
                 </LinearLayout>
 
@@ -198,6 +234,20 @@
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         tools:text="Information Technology" />
+
+                    <EditText
+                        android:id="@+id/et_profile_dept"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input_field"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp"
+                        android:inputType="textCapWords"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:visibility="gone"
+                        tools:text="Information Technology" />
                 </LinearLayout>
 
                 <View
@@ -227,6 +277,20 @@
                         android:layout_marginTop="4dp"
                         android:textColor="@color/text_primary"
                         android:textSize="15sp"
+                        tools:text="FACULTY" />
+
+                    <EditText
+                        android:id="@+id/et_profile_role"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_input_field"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp"
+                        android:inputType="textCapWords"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:visibility="gone"
                         tools:text="FACULTY" />
                 </LinearLayout>
 

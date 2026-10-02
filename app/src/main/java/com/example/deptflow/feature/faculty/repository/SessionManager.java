@@ -18,6 +18,7 @@ public class SessionManager {
     private static final String KEY_USER_EMAIL = "user_email";
     private static final String KEY_DEPARTMENT = "user_dept";
     private static final String KEY_ROLE = "user_role";
+    private static final String KEY_PROFILE_IMAGE = "user_profile_image";
 
     public static final String ROLE_FACULTY = "FACULTY";
     public static final String ROLE_HOD = "HOD";
@@ -72,6 +73,28 @@ public class SessionManager {
         String dept = preferences.getString(KEY_DEPARTMENT, "Information Technology");
         String role = preferences.getString(KEY_ROLE, ROLE_FACULTY);
         return new FacultyUser(userId, name, email, dept, role);
+    }
+
+    public void saveProfileImage(String userId, String imageBase64) {
+        String key = (userId != null && !userId.trim().isEmpty()) ? (KEY_PROFILE_IMAGE + "_" + userId.trim()) : KEY_PROFILE_IMAGE;
+        preferences.edit().putString(key, imageBase64 != null ? imageBase64 : "").apply();
+    }
+
+    public void saveProfileImage(String imageBase64) {
+        saveProfileImage(getCurrentUser() != null ? getCurrentUser().getUserId() : "", imageBase64);
+    }
+
+    public String getProfileImage(String userId) {
+        String key = (userId != null && !userId.trim().isEmpty()) ? (KEY_PROFILE_IMAGE + "_" + userId.trim()) : KEY_PROFILE_IMAGE;
+        String image = preferences.getString(key, "");
+        if (image.isEmpty() && preferences.contains(KEY_PROFILE_IMAGE)) {
+            return preferences.getString(KEY_PROFILE_IMAGE, "");
+        }
+        return image;
+    }
+
+    public String getProfileImage() {
+        return getProfileImage(getCurrentUser() != null ? getCurrentUser().getUserId() : "");
     }
 
     public boolean isFaculty() {
