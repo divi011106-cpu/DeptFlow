@@ -1,7 +1,6 @@
 package com.example.deptflow.communication.adapters;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -54,8 +53,23 @@ public class TaskDiscussionAdapter extends RecyclerView.Adapter<TaskDiscussionAd
         }
         holder.tvTaskId.setText(taskId);
 
-        // Task Title
-        holder.tvTaskTitle.setText(task.getTitle());
+        // Task Title with icon
+        String rawTitle = task.getTitle();
+        if (rawTitle == null || rawTitle.isEmpty()) {
+            rawTitle = "Task Discussion";
+        }
+        if (!rawTitle.startsWith("📋")) {
+            holder.tvTaskTitle.setText("📋 " + rawTitle);
+        } else {
+            holder.tvTaskTitle.setText(rawTitle);
+        }
+
+        // Assigned by HOD
+        String assignedBy = task.getAssignedBy();
+        if (assignedBy == null || assignedBy.trim().isEmpty()) {
+            assignedBy = "HOD";
+        }
+        holder.tvAssignedBy.setText("Assigned by: " + (assignedBy.toUpperCase().contains("HOD") ? "HOD" : assignedBy));
 
         // Task Description
         String desc = task.getDescription();
@@ -69,9 +83,9 @@ public class TaskDiscussionAdapter extends RecyclerView.Adapter<TaskDiscussionAd
         // Deadline
         String deadline = task.getDeadline();
         if (deadline == null || deadline.trim().isEmpty()) {
-            holder.tvTaskDeadline.setText("No deadline");
+            holder.tvTaskDeadline.setText("Deadline: No deadline");
         } else {
-            holder.tvTaskDeadline.setText("Due: " + deadline.trim());
+            holder.tvTaskDeadline.setText("Deadline: " + deadline.trim());
         }
 
         // Priority Badge
@@ -106,22 +120,50 @@ public class TaskDiscussionAdapter extends RecyclerView.Adapter<TaskDiscussionAd
             holder.tvTaskStatus.setTextColor(ContextCompat.getColor(context, R.color.status_pending_text));
         }
 
-        // Assigned Faculty Summary
-        List<String> facultyList = task.getAssignedFaculty();
-        if (facultyList != null && !facultyList.isEmpty()) {
-            StringBuilder sb = new StringBuilder("Assigned: ");
-            for (int i = 0; i < facultyList.size(); i++) {
-                sb.append(facultyList.get(i));
-                if (i < facultyList.size() - 1) sb.append(", ");
+        // Participants / Team Members Section
+        List<String> assignedList = task.getAssignedFaculty();
+        int count = task.getAssignedFacultyCount();
+
+        if (task.isAll()) {
+            if (holder.tvTaskType != null) {
+                holder.tvTaskType.setText("Team Task");
+                holder.tvTaskType.setVisibility(View.VISIBLE);
             }
-            holder.tvAssignedFaculty.setText(sb.toString());
+            holder.tvParticipantsHeader.setText("Team Task: All Faculty");
             holder.tvAssignedFaculty.setVisibility(View.VISIBLE);
-        } else if (task.getFaculty() != null && !task.getFaculty().isEmpty()) {
-            holder.tvAssignedFaculty.setText("Assigned: " + task.getFaculty());
-            holder.tvAssignedFaculty.setVisibility(View.VISIBLE);
+            holder.tvAssignedFaculty.setText("All Department Faculty Members");
+        } else if (count > 1 || (assignedList != null && assignedList.size() > 1)) {
+            if (holder.tvTaskType != null) {
+                holder.tvTaskType.setText("Team Task");
+                holder.tvTaskType.setVisibility(View.VISIBLE);
+            }
+            holder.tvParticipantsHeader.setText("Team Members (" + count + "):");
+            if (assignedList != null && !assignedList.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < assignedList.size(); i++) {
+                    sb.append("• ").append(assignedList.get(i));
+                    if (i < assignedList.size() - 1) sb.append("\n");
+                }
+                holder.tvAssignedFaculty.setVisibility(View.VISIBLE);
+                holder.tvAssignedFaculty.setText(sb.toString());
+            } else {
+                holder.tvAssignedFaculty.setVisibility(View.GONE);
+            }
         } else {
-            holder.tvAssignedFaculty.setText("Assigned: Department Faculty");
-            holder.tvAssignedFaculty.setVisibility(View.VISIBLE);
+            if (holder.tvTaskType != null) {
+                holder.tvTaskType.setText("Individual Task");
+                holder.tvTaskType.setVisibility(View.VISIBLE);
+            }
+            holder.tvParticipantsHeader.setText("Individual Task");
+            if (assignedList != null && !assignedList.isEmpty()) {
+                holder.tvAssignedFaculty.setVisibility(View.VISIBLE);
+                holder.tvAssignedFaculty.setText("• " + assignedList.get(0));
+            } else if (!task.getFaculty().isEmpty()) {
+                holder.tvAssignedFaculty.setVisibility(View.VISIBLE);
+                holder.tvAssignedFaculty.setText("• " + task.getFaculty());
+            } else {
+                holder.tvAssignedFaculty.setVisibility(View.GONE);
+            }
         }
 
         // Card Click Listener
@@ -147,20 +189,26 @@ public class TaskDiscussionAdapter extends RecyclerView.Adapter<TaskDiscussionAd
 
     static class TaskViewHolder extends RecyclerView.ViewHolder {
         TextView tvTaskId;
+        TextView tvTaskType;
         TextView tvTaskPriority;
         TextView tvTaskStatus;
         TextView tvTaskTitle;
+        TextView tvAssignedBy;
         TextView tvTaskDescription;
+        TextView tvParticipantsHeader;
         TextView tvAssignedFaculty;
         TextView tvTaskDeadline;
 
         TaskViewHolder(@NonNull View itemView) {
             super(itemView);
             tvTaskId = itemView.findViewById(R.id.tvTaskId);
+            tvTaskType = itemView.findViewById(R.id.tvTaskType);
             tvTaskPriority = itemView.findViewById(R.id.tvTaskPriority);
             tvTaskStatus = itemView.findViewById(R.id.tvTaskStatus);
             tvTaskTitle = itemView.findViewById(R.id.tvTaskTitle);
+            tvAssignedBy = itemView.findViewById(R.id.tvAssignedBy);
             tvTaskDescription = itemView.findViewById(R.id.tvTaskDescription);
+            tvParticipantsHeader = itemView.findViewById(R.id.tvParticipantsHeader);
             tvAssignedFaculty = itemView.findViewById(R.id.tvAssignedFaculty);
             tvTaskDeadline = itemView.findViewById(R.id.tvTaskDeadline);
         }

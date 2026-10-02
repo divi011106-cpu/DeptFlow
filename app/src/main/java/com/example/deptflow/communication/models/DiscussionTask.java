@@ -1,12 +1,16 @@
 package com.example.deptflow.communication.models;
 
+import com.example.deptflow.feature.faculty.models.FacultyUser;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Model representing a task available for group discussion in the Communication module.
- * Maps cleanly to Firestore documents from the 'tasks' collection.
+ * Dynamically populated from Firestore documents in 'task_assignments'.
  */
 public class DiscussionTask implements Serializable {
 
@@ -16,32 +20,45 @@ public class DiscussionTask implements Serializable {
     private String deadline;
     private String priority;
     private String status;
+    private String assignedBy;
     private List<String> assignedFaculty;
     private List<String> assignedFacultyUids;
+    private List<String> assignedFacultyIds;
     private int assignedFacultyCount;
     private String faculty; // Legacy field for individual faculty records
+    private String assignedTo;
+    private boolean isAll;
     private long timestamp;
+    private int unreadCount;
 
     public DiscussionTask() {
-        // Required for Firestore deserialization
         this.assignedFaculty = new ArrayList<>();
         this.assignedFacultyUids = new ArrayList<>();
+        this.assignedFacultyIds = new ArrayList<>();
+        this.assignedBy = "HOD (Department Head)";
+        this.priority = "MEDIUM";
+        this.status = "PENDING";
     }
 
     public DiscussionTask(String id, String title, String description, String deadline,
-                          String priority, String status, List<String> assignedFaculty,
-                          List<String> assignedFacultyUids, int assignedFacultyCount,
-                          String faculty, long timestamp) {
+                          String priority, String status, String assignedBy,
+                          List<String> assignedFaculty, List<String> assignedFacultyUids,
+                          List<String> assignedFacultyIds, int assignedFacultyCount,
+                          String faculty, String assignedTo, boolean isAll, long timestamp) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.deadline = deadline;
-        this.priority = priority;
-        this.status = status;
+        this.priority = priority != null ? priority : "MEDIUM";
+        this.status = status != null ? status : "PENDING";
+        this.assignedBy = assignedBy != null && !assignedBy.trim().isEmpty() ? assignedBy : "HOD (Department Head)";
         this.assignedFaculty = assignedFaculty != null ? assignedFaculty : new ArrayList<>();
         this.assignedFacultyUids = assignedFacultyUids != null ? assignedFacultyUids : new ArrayList<>();
+        this.assignedFacultyIds = assignedFacultyIds != null ? assignedFacultyIds : new ArrayList<>();
         this.assignedFacultyCount = assignedFacultyCount;
         this.faculty = faculty;
+        this.assignedTo = assignedTo;
+        this.isAll = isAll;
         this.timestamp = timestamp;
     }
 
@@ -78,7 +95,7 @@ public class DiscussionTask implements Serializable {
     }
 
     public String getPriority() {
-        return priority != null ? priority : "Medium";
+        return priority != null ? priority : "MEDIUM";
     }
 
     public void setPriority(String priority) {
@@ -86,15 +103,23 @@ public class DiscussionTask implements Serializable {
     }
 
     public String getStatus() {
-        return status != null ? status : "Assigned";
+        return status != null ? status : "PENDING";
     }
 
     public void setStatus(String status) {
         this.status = status;
     }
 
+    public String getAssignedBy() {
+        return assignedBy != null && !assignedBy.trim().isEmpty() ? assignedBy : "HOD (Department Head)";
+    }
+
+    public void setAssignedBy(String assignedBy) {
+        this.assignedBy = assignedBy;
+    }
+
     public List<String> getAssignedFaculty() {
-        return assignedFaculty;
+        return assignedFaculty != null ? assignedFaculty : new ArrayList<>();
     }
 
     public void setAssignedFaculty(List<String> assignedFaculty) {
@@ -102,15 +127,29 @@ public class DiscussionTask implements Serializable {
     }
 
     public List<String> getAssignedFacultyUids() {
-        return assignedFacultyUids;
+        return assignedFacultyUids != null ? assignedFacultyUids : new ArrayList<>();
     }
 
     public void setAssignedFacultyUids(List<String> assignedFacultyUids) {
         this.assignedFacultyUids = assignedFacultyUids != null ? assignedFacultyUids : new ArrayList<>();
     }
 
+    public List<String> getAssignedFacultyIds() {
+        return assignedFacultyIds != null ? assignedFacultyIds : new ArrayList<>();
+    }
+
+    public void setAssignedFacultyIds(List<String> assignedFacultyIds) {
+        this.assignedFacultyIds = assignedFacultyIds != null ? assignedFacultyIds : new ArrayList<>();
+    }
+
     public int getAssignedFacultyCount() {
-        return assignedFacultyCount;
+        if (isAll) {
+            return Math.max(assignedFacultyCount, FacultyDirectory.FACULTY_NAMES.length);
+        }
+        if (assignedFaculty != null && !assignedFaculty.isEmpty()) {
+            return Math.max(assignedFacultyCount, assignedFaculty.size());
+        }
+        return Math.max(assignedFacultyCount, 1);
     }
 
     public void setAssignedFacultyCount(int assignedFacultyCount) {
@@ -118,11 +157,27 @@ public class DiscussionTask implements Serializable {
     }
 
     public String getFaculty() {
-        return faculty;
+        return faculty != null ? faculty : "";
     }
 
     public void setFaculty(String faculty) {
         this.faculty = faculty;
+    }
+
+    public String getAssignedTo() {
+        return assignedTo != null ? assignedTo : "";
+    }
+
+    public void setAssignedTo(String assignedTo) {
+        this.assignedTo = assignedTo;
+    }
+
+    public boolean isAll() {
+        return isAll;
+    }
+
+    public void setAll(boolean all) {
+        this.isAll = all;
     }
 
     public long getTimestamp() {
@@ -133,57 +188,122 @@ public class DiscussionTask implements Serializable {
         this.timestamp = timestamp;
     }
 
+    public int getUnreadCount() {
+        return unreadCount;
+    }
+
+    public void setUnreadCount(int unreadCount) {
+        this.unreadCount = unreadCount;
+    }
+
     /**
-     * Determines whether this task is assigned to the given faculty user.
-     * 1. Primary check: Matches against assignedFacultyUids using the user's Firebase UID.
-     * 2. Fallback check: Matches against assignedFaculty or faculty using display name if UID list is missing.
-     * 3. Disambiguation: If multiple faculty members in the department share the exact same name,
-     *    the task is NOT assumed to belong to them to avoid cross-assignment errors.
+     * Determines whether this task is assigned to the current user.
      */
-    public boolean isAssignedToUser(String currentUid, String currentName, List<String> allDepartmentFacultyNames) {
-        // 1. Primary Check: Match by Firebase UID
-        if (assignedFacultyUids != null && !assignedFacultyUids.isEmpty()) {
-            if (currentUid != null && !currentUid.trim().isEmpty()) {
-                return assignedFacultyUids.contains(currentUid.trim());
-            }
-            return false;
-        }
-
-        // 2. Fallback Check: Match by Faculty Name for older records without UID
-        if (currentName == null || currentName.trim().isEmpty()) {
-            return false;
-        }
-
-        String trimmedName = currentName.trim();
-
-        // 3. Ambiguity Check: Do not assume ownership if name matches multiple faculty members
-        if (allDepartmentFacultyNames != null) {
-            int count = 0;
-            for (String name : allDepartmentFacultyNames) {
-                if (name != null && name.trim().equalsIgnoreCase(trimmedName)) {
-                    count++;
-                }
-            }
-            if (count > 1) {
-                // Ambiguous match: multiple faculty share the exact same name
-                return false;
-            }
-        }
-
-        // Check single faculty field
-        if (faculty != null && faculty.trim().equalsIgnoreCase(trimmedName)) {
+    public boolean isAssignedToUser(Set<String> myIdentifiers, boolean isHod) {
+        // HOD can view all task discussions
+        if (isHod) {
             return true;
         }
 
-        // Check assignedFaculty array
+        // Tasks assigned to ALL are visible to every faculty member
+        if (isAll) {
+            return true;
+        }
+
+        if (myIdentifiers == null || myIdentifiers.isEmpty()) {
+            return false;
+        }
+
+        // 1. Check assignedFacultyUids
+        if (assignedFacultyUids != null) {
+            for (String uid : assignedFacultyUids) {
+                if (matchesIdentifier(uid, myIdentifiers)) return true;
+            }
+        }
+
+        // 2. Check assignedFacultyIds
+        if (assignedFacultyIds != null) {
+            for (String fid : assignedFacultyIds) {
+                if (matchesIdentifier(fid, myIdentifiers)) return true;
+            }
+        }
+
+        // 3. Check assignedTo
+        if (assignedTo != null && !assignedTo.trim().isEmpty()) {
+            if (isAllString(assignedTo)) return true;
+            if (matchesIdentifier(assignedTo, myIdentifiers)) return true;
+        }
+
+        // 4. Check faculty field
+        if (faculty != null && !faculty.trim().isEmpty()) {
+            if (isAllString(faculty)) return true;
+            String[] parts = faculty.split("[\r\n,]+");
+            for (String p : parts) {
+                if (matchesIdentifier(p.trim(), myIdentifiers)) return true;
+            }
+        }
+
+        // 5. Check assignedFaculty list
         if (assignedFaculty != null) {
             for (String fName : assignedFaculty) {
-                if (fName != null && fName.trim().equalsIgnoreCase(trimmedName)) {
-                    return true;
-                }
+                if (isAllString(fName)) return true;
+                if (matchesIdentifier(fName, myIdentifiers)) return true;
             }
         }
 
         return false;
+    }
+
+    private boolean isAllString(String s) {
+        if (s == null) return false;
+        String trimmed = s.trim().toUpperCase(Locale.ROOT);
+        return trimmed.equals("ALL")
+                || trimmed.equals("ALL FACULTY")
+                || trimmed.equals("ALL FACULTIES")
+                || trimmed.equals("ALL_FACULTY")
+                || trimmed.equals("ALL_FACULTIES")
+                || trimmed.equals("ALL MEMBERS")
+                || trimmed.equals("EVERYONE");
+    }
+
+    private boolean matchesIdentifier(String val, Set<String> myIdentifiers) {
+        if (val == null || val.trim().isEmpty()) return false;
+        String trimmed = val.trim();
+        if (myIdentifiers.contains(trimmed)) return true;
+        if (myIdentifiers.contains(trimmed.toLowerCase(Locale.ROOT))) return true;
+
+        String clean = trimmed.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
+        if (!clean.isEmpty() && myIdentifiers.contains(clean)) return true;
+
+        // Try resolving canonical faculty user
+        FacultyUser resolved = FacultyDirectory.resolveByNameOrId(trimmed);
+        if (resolved != null) {
+            if (resolved.getUserId() != null && myIdentifiers.contains(resolved.getUserId().toLowerCase(Locale.ROOT))) return true;
+            if (resolved.getName() != null && myIdentifiers.contains(resolved.getName().toLowerCase(Locale.ROOT))) return true;
+            if (resolved.getEmail() != null && myIdentifiers.contains(resolved.getEmail().toLowerCase(Locale.ROOT))) return true;
+        }
+
+        return false;
+    }
+
+    public String getParticipantsSummary() {
+        if (isAll) {
+            return "All Faculty";
+        }
+        if (assignedFaculty != null && !assignedFaculty.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < assignedFaculty.size(); i++) {
+                sb.append(assignedFaculty.get(i));
+                if (i < assignedFaculty.size() - 1) sb.append(", ");
+            }
+            return sb.toString();
+        }
+        if (assignedTo != null && !assignedTo.trim().isEmpty()) {
+            return assignedTo.trim();
+        }
+        if (faculty != null && !faculty.trim().isEmpty()) {
+            return faculty.trim();
+        }
+        return "Department Faculty";
     }
 }

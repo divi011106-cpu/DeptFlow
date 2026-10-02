@@ -13,8 +13,13 @@ import java.util.Locale;
 public class AppNotification implements Serializable {
 
     public static final String TYPE_TASK = "TASK_ASSIGNED";
+    public static final String TYPE_TASK_ASSIGNED = "TASK_ASSIGNED";
+    public static final String TYPE_TASK_ASSIGNMENT = "TASK_ASSIGNMENT";
+    public static final String TYPE_TEAM_TASK = "TEAM_TASK";
+    public static final String TYPE_TEAM_TASK_ASSIGNED = "TEAM_TASK_ASSIGNED";
     public static final String TYPE_ANNOUNCEMENT = "ANNOUNCEMENT";
     public static final String TYPE_CHAT = "CHAT_MESSAGE";
+    public static final String TYPE_CHAT_MESSAGE = "CHAT_MESSAGE";
 
     private String id;
     private String type;
@@ -23,20 +28,25 @@ public class AppNotification implements Serializable {
     private String message;
     private String deadline;
     private String priority;
+    private String status;
     private long timestamp;
     private String sender;
     private String senderId;
+    private String senderRole;
     private String recipientId;
     private String chatId;
     private String messageId;
     private String taskId;
     private boolean isRead;
+    private java.util.List<String> assignedMembers = new java.util.ArrayList<>();
+    private int assignedMemberCount = 0;
+    private boolean isAll = false;
 
     public AppNotification() {
     }
 
     /**
-     * Constructor for Task assignment and Announcement notifications.
+     * Constructor for Task assignment, Team Task, and Announcement notifications.
      */
     public AppNotification(String id, String type, String title, String subtitle,
                            String message, String deadline, String priority,
@@ -48,11 +58,42 @@ public class AppNotification implements Serializable {
         this.message = message;
         this.deadline = deadline;
         this.priority = priority;
+        this.status = "PENDING";
         this.timestamp = timestamp;
         this.sender = sender != null ? sender : "HOD";
         this.taskId = taskId;
         this.isRead = isRead;
         this.senderId = "";
+        this.senderRole = "";
+        this.recipientId = "";
+        this.chatId = "";
+        this.messageId = "";
+    }
+
+    /**
+     * Comprehensive constructor for Team Tasks and HOD assignments with member lists.
+     */
+    public AppNotification(String id, String type, String title, String subtitle,
+                           String message, String deadline, String priority, String status,
+                           long timestamp, String sender, String taskId,
+                           java.util.List<String> assignedMembers, boolean isAll, boolean isRead) {
+        this.id = id;
+        this.type = type != null ? type : (assignedMembers != null && assignedMembers.size() > 1 ? TYPE_TEAM_TASK : TYPE_TASK_ASSIGNMENT);
+        this.title = title;
+        this.subtitle = subtitle;
+        this.message = message;
+        this.deadline = deadline;
+        this.priority = priority;
+        this.status = status != null ? status : "PENDING";
+        this.timestamp = timestamp;
+        this.sender = sender != null ? sender : "HOD";
+        this.taskId = taskId;
+        this.assignedMembers = assignedMembers != null ? assignedMembers : new java.util.ArrayList<>();
+        this.assignedMemberCount = this.assignedMembers.size();
+        this.isAll = isAll;
+        this.isRead = isRead;
+        this.senderId = "";
+        this.senderRole = "";
         this.recipientId = "";
         this.chatId = "";
         this.messageId = "";
@@ -200,6 +241,85 @@ public class AppNotification implements Serializable {
 
     public void setRead(boolean read) {
         isRead = read;
+    }
+
+    public String getStatus() {
+        return status != null ? status : "PENDING";
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getSenderRole() {
+        return senderRole != null ? senderRole : "";
+    }
+
+    public void setSenderRole(String senderRole) {
+        this.senderRole = senderRole;
+    }
+
+    public java.util.List<String> getAssignedMembers() {
+        return assignedMembers != null ? assignedMembers : new java.util.ArrayList<>();
+    }
+
+    public void setAssignedMembers(java.util.List<String> assignedMembers) {
+        this.assignedMembers = assignedMembers != null ? assignedMembers : new java.util.ArrayList<>();
+        this.assignedMemberCount = this.assignedMembers.size();
+    }
+
+    public int getAssignedMemberCount() {
+        if (isAll) return 23;
+        return assignedMembers != null ? Math.max(assignedMemberCount, assignedMembers.size()) : assignedMemberCount;
+    }
+
+    public void setAssignedMemberCount(int assignedMemberCount) {
+        this.assignedMemberCount = assignedMemberCount;
+    }
+
+    public boolean isAll() {
+        return isAll;
+    }
+
+    public void setAll(boolean all) {
+        isAll = all;
+    }
+
+    public boolean isChat() {
+        if (type == null) return false;
+        String t = type.toUpperCase(Locale.ROOT);
+        return t.contains("CHAT");
+    }
+
+    public boolean isTeamTask() {
+        if (type == null) return false;
+        String t = type.toUpperCase(Locale.ROOT);
+        if (t.contains("TEAM")) return true;
+        if (isAll) return true;
+        return (assignedMembers != null && assignedMembers.size() > 1);
+    }
+
+    public boolean isTaskAssignment() {
+        if (isChat()) return false;
+        if (isTeamTask()) return false;
+        if (type == null) return true;
+        String t = type.toUpperCase(Locale.ROOT);
+        return t.contains("TASK") || t.contains("ASSIGN");
+    }
+
+    public String getTeamMembersSummary() {
+        if (isAll) {
+            return "Team: All Department Faculty";
+        }
+        if (assignedMembers != null && !assignedMembers.isEmpty()) {
+            StringBuilder sb = new StringBuilder("Team: ");
+            for (int i = 0; i < assignedMembers.size(); i++) {
+                sb.append(assignedMembers.get(i));
+                if (i < assignedMembers.size() - 1) sb.append(" • ");
+            }
+            return sb.toString();
+        }
+        return "";
     }
 
     /**

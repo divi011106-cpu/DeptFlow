@@ -13,7 +13,9 @@ import com.example.deptflow.R;
 import com.example.deptflow.communication.models.DiscussionMessage;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Adapter for rendering real-time chat messages in a Task Discussion.
@@ -26,18 +28,43 @@ public class DiscussionChatAdapter extends RecyclerView.Adapter<RecyclerView.Vie
 
     private final Context context;
     private final List<DiscussionMessage> messageList;
-    private final String currentUserId;
+    private final Set<String> userIdentifiers = new HashSet<>();
 
     public DiscussionChatAdapter(Context context, List<DiscussionMessage> messageList, String currentUserId) {
         this.context = context;
-        this.messageList = messageList != null ? messageList : new ArrayList<>();
-        this.currentUserId = currentUserId != null ? currentUserId : "";
+        this.messageList = new ArrayList<>();
+        if (messageList != null) {
+            this.messageList.addAll(messageList);
+        }
+        if (currentUserId != null && !currentUserId.trim().isEmpty()) {
+            this.userIdentifiers.add(currentUserId.trim());
+            this.userIdentifiers.add(currentUserId.trim().toLowerCase());
+        }
+    }
+
+    public DiscussionChatAdapter(Context context, List<DiscussionMessage> messageList, Set<String> identifiers) {
+        this.context = context;
+        this.messageList = new ArrayList<>();
+        if (messageList != null) {
+            this.messageList.addAll(messageList);
+        }
+        if (identifiers != null) {
+            this.userIdentifiers.addAll(identifiers);
+        }
+    }
+
+    public void setUserIdentifiers(Set<String> identifiers) {
+        this.userIdentifiers.clear();
+        if (identifiers != null) {
+            this.userIdentifiers.addAll(identifiers);
+        }
+        notifyDataSetChanged();
     }
 
     @Override
     public int getItemViewType(int position) {
         DiscussionMessage message = messageList.get(position);
-        if (message.isSentBy(currentUserId)) {
+        if (message.isSentBy(userIdentifiers)) {
             return VIEW_TYPE_SENT;
         } else {
             return VIEW_TYPE_RECEIVED;
@@ -65,6 +92,22 @@ public class DiscussionChatAdapter extends RecyclerView.Adapter<RecyclerView.Vie
             SentMessageViewHolder sentHolder = (SentMessageViewHolder) holder;
             sentHolder.tvMessageText.setText(message.getMessage());
             sentHolder.tvMessageTime.setText(message.getFormattedTime());
+
+            int tickState = message.getTickStatus(userIdentifiers);
+            if (tickState == 2) {
+                // READ: ✓✓ blue
+                sentHolder.tvMessageStatus.setText("✓✓");
+                sentHolder.tvMessageStatus.setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.chat_tick_read));
+            } else if (tickState == 1) {
+                // DELIVERED: ✓✓ grey
+                sentHolder.tvMessageStatus.setText("✓✓");
+                sentHolder.tvMessageStatus.setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.chat_tick_delivered));
+            } else {
+                // SENT: ✓ grey
+                sentHolder.tvMessageStatus.setText("✓");
+                sentHolder.tvMessageStatus.setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.chat_tick_delivered));
+            }
+            sentHolder.tvMessageStatus.setVisibility(View.VISIBLE);
         } else if (holder instanceof ReceivedMessageViewHolder) {
             ReceivedMessageViewHolder recvHolder = (ReceivedMessageViewHolder) holder;
             recvHolder.tvMessageText.setText(message.getMessage());
@@ -104,11 +147,13 @@ public class DiscussionChatAdapter extends RecyclerView.Adapter<RecyclerView.Vie
     static class SentMessageViewHolder extends RecyclerView.ViewHolder {
         TextView tvMessageText;
         TextView tvMessageTime;
+        TextView tvMessageStatus;
 
         SentMessageViewHolder(@NonNull View itemView) {
             super(itemView);
             tvMessageText = itemView.findViewById(R.id.tvMessageText);
             tvMessageTime = itemView.findViewById(R.id.tvMessageTime);
+            tvMessageStatus = itemView.findViewById(R.id.tvMessageStatus);
         }
     }
 

@@ -1,6 +1,8 @@
 package com.example.deptflow.communication;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -18,6 +20,7 @@ import com.example.deptflow.communication.adapters.TaskDiscussionAdapter;
 import com.example.deptflow.communication.models.DiscussionTask;
 import com.example.deptflow.communication.models.FacultyDirectory;
 import com.example.deptflow.feature.faculty.models.FacultyUser;
+import com.example.deptflow.feature.faculty.repository.SessionManager;
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -36,10 +39,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * TaskDiscussionActivity
+ *
+ * Dynamically queries the real HOD assigned tasks from Firestore collection 'task_assignments'
+ * using the exact same identity resolution and document matching logic as CommunicationActivity.
+ */
 public class TaskDiscussionActivity extends AppCompatActivity
         implements TaskDiscussionAdapter.OnTaskClickListener {
 
-    private static final String TAG = "TaskDiscussion";
+    private static final String TAG = "TASK_DISCUSSION_DEBUG";
 
     private RecyclerView rvTaskDiscussions;
     private ProgressBar pbLoadingTasks;
@@ -56,7 +65,8 @@ public class TaskDiscussionActivity extends AppCompatActivity
     private String currentUid = "";
     private String currentUserId = "";
     private String currentCanonicalId = "";
-    private String currentName = "";
+    private String currentUserName = "Faculty";
+    private String currentUserEmail = "";
     private String currentUserRole = "FACULTY";
     private final Set<String> myIdentifiers = new HashSet<>();
 
@@ -70,15 +80,13 @@ public class TaskDiscussionActivity extends AppCompatActivity
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        loadCurrentUserInfo();
         setupRecyclerView();
+    }
 
-        if (currentUid.isEmpty() && currentUserId.isEmpty() && currentCanonicalId.isEmpty()) {
-            Toast.makeText(this, "Please log in to view task discussions", Toast.LENGTH_LONG).show();
-            finish();
-            return;
-        }
-
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadCurrentUserInfo();
         listenToFirestoreTasks();
     }
 
@@ -95,76 +103,158 @@ public class TaskDiscussionActivity extends AppCompatActivity
 
     private void loadCurrentUserInfo() {
         myIdentifiers.clear();
-        FirebaseUser firebaseUser = auth.getCurrentUser();
 
-        if (firebaseUser != null) {
-            currentUid = firebaseUser.getUid();
+        // 1. Firebase Auth user
+        FirebaseUser fbUser = auth.getCurrentUser();
+        if (fbUser != null) {
+            currentUid = fbUser.getUid();
             addIdentifier(currentUid);
-            if (firebaseUser.getEmail() != null) {
-                addIdentifier(firebaseUser.getEmail());
+            if (fbUser.getEmail() != null) {
+                currentUserEmail = fbUser.getEmail().trim().toLowerCase(Locale.ROOT);
+                addIdentifier(currentUserEmail);
             }
-            if (firebaseUser.getDisplayName() != null && !firebaseUser.getDisplayName().trim().isEmpty()) {
-                currentName = firebaseUser.getDisplayName().trim();
-                addIdentifier(currentName);
+            if (fbUser.getDisplayName() != null && !fbUser.getDisplayName().trim().isEmpty()) {
+                currentUserName = fbUser.getDisplayName().trim();
+                addIdentifier(currentUserName);
             }
         }
 
-        FacultyUser cachedUser = AuthManager.getInstance(this).getCurrentUser();
-        if (cachedUser != null) {
-            if (cachedUser.getUserId() != null && !cachedUser.getUserId().trim().isEmpty()) {
-                currentUserId = cachedUser.getUserId().trim();
+        // 2. AuthManager session
+        FacultyUser sessionUser = AuthManager.getInstance(this).getCurrentUser();
+        if (sessionUser != null) {
+            if (sessionUser.getUserId() != null && !sessionUser.getUserId().trim().isEmpty()) {
+                currentUserId = sessionUser.getUserId().trim();
                 addIdentifier(currentUserId);
             }
-            if (cachedUser.getName() != null && !cachedUser.getName().trim().isEmpty()) {
-                currentName = cachedUser.getName().trim();
-                addIdentifier(currentName);
+            if (sessionUser.getName() != null && !sessionUser.getName().trim().isEmpty()) {
+                currentUserName = sessionUser.getName().trim();
+                addIdentifier(currentUserName);
             }
-            if (cachedUser.getEmail() != null && !cachedUser.getEmail().trim().isEmpty()) {
-                addIdentifier(cachedUser.getEmail());
+            if (sessionUser.getEmail() != null && !sessionUser.getEmail().trim().isEmpty()) {
+                currentUserEmail = sessionUser.getEmail().trim().toLowerCase(Locale.ROOT);
+                addIdentifier(currentUserEmail);
             }
-            if (cachedUser.getRole() != null && !cachedUser.getRole().trim().isEmpty()) {
-                currentUserRole = cachedUser.getRole().trim().toUpperCase();
+            if (sessionUser.getRole() != null && !sessionUser.getRole().trim().isEmpty()) {
+                currentUserRole = sessionUser.getRole().trim().toUpperCase(Locale.ROOT);
             }
 
-            FacultyUser canonical = FacultyDirectory.resolveCanonicalFaculty(cachedUser);
+            FacultyUser canonical = FacultyDirectory.resolveCanonicalFaculty(sessionUser);
             if (canonical != null) {
                 currentCanonicalId = canonical.getUserId();
+                currentUserName = canonical.getName();
                 addIdentifier(currentCanonicalId);
                 addIdentifier(canonical.getName());
                 addIdentifier(canonical.getEmail());
             }
         }
 
-        if (currentCanonicalId.isEmpty() && !currentName.isEmpty()) {
-            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentName);
-            if (!currentCanonicalId.isEmpty()) addIdentifier(currentCanonicalId);
+        // 3. SessionManager fallback
+        FacultyUser facultySession = SessionManager.getInstance(this).getCurrentUser();
+        if (facultySession != null) {
+            if (currentUserId.isEmpty() && facultySession.getUserId() != null && !facultySession.getUserId().trim().isEmpty()) {
+                currentUserId = facultySession.getUserId().trim();
+                addIdentifier(currentUserId);
+            }
+            if ((currentUserName.isEmpty() || "Faculty".equals(currentUserName)) && facultySession.getName() != null && !facultySession.getName().trim().isEmpty()) {
+                currentUserName = facultySession.getName().trim();
+                addIdentifier(currentUserName);
+            }
+            if (currentUserEmail.isEmpty() && facultySession.getEmail() != null && !facultySession.getEmail().trim().isEmpty()) {
+                currentUserEmail = facultySession.getEmail().trim().toLowerCase(Locale.ROOT);
+                addIdentifier(currentUserEmail);
+            }
+            if (currentUserRole.isEmpty() && facultySession.getRole() != null && !facultySession.getRole().trim().isEmpty()) {
+                currentUserRole = facultySession.getRole().trim().toUpperCase(Locale.ROOT);
+            }
         }
 
+        // 4. SharedPreferences direct fallback
+        SharedPreferences sp = getSharedPreferences("deptflow_session_pref", Context.MODE_PRIVATE);
+        if (currentUserId.isEmpty()) {
+            currentUserId = sp.getString("user_id", "");
+            if (!currentUserId.isEmpty()) addIdentifier(currentUserId);
+        }
+        if (currentNameIsEmpty()) {
+            String spName = sp.getString("user_name", "");
+            if (!spName.isEmpty()) {
+                currentUserName = spName;
+                addIdentifier(currentUserName);
+            }
+        }
+        if (currentUserEmail.isEmpty()) {
+            currentUserEmail = sp.getString("user_email", "");
+            if (!currentUserEmail.isEmpty()) addIdentifier(currentUserEmail);
+        }
+        String spRole = sp.getString("user_role", "");
+        if (!spRole.isEmpty()) {
+            currentUserRole = spRole.toUpperCase(Locale.ROOT);
+        }
+
+        // 5. Canonical resolution via FacultyDirectory
+        if (currentCanonicalId.isEmpty() && !currentNameIsEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserName);
+            if (!currentCanonicalId.isEmpty()) addIdentifier(currentCanonicalId);
+        }
         if (currentCanonicalId.isEmpty() && !currentUserId.isEmpty()) {
             currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserId);
             if (!currentCanonicalId.isEmpty()) addIdentifier(currentCanonicalId);
         }
-
+        if (currentCanonicalId.isEmpty() && !currentUserEmail.isEmpty()) {
+            currentCanonicalId = FacultyDirectory.resolveCanonicalId(currentUserEmail);
+            if (!currentCanonicalId.isEmpty()) addIdentifier(currentCanonicalId);
+        }
         if (currentCanonicalId.isEmpty() && !currentUid.isEmpty()) {
             currentCanonicalId = currentUid;
             addIdentifier(currentCanonicalId);
         }
 
-        Log.d(TAG, "User UID=" + currentUid
-                + ", canonicalId=" + currentCanonicalId
-                + ", name=" + currentName
-                + ", role=" + currentUserRole);
+        Log.d(TAG, "currentUserId = " + currentUserId);
+        Log.d(TAG, "currentUserName = " + currentUserName);
+        Log.d(TAG, "currentUserRole = " + currentUserRole);
+    }
+
+    private boolean currentNameIsEmpty() {
+        return currentUserName == null || currentUserName.trim().isEmpty() || "Faculty".equalsIgnoreCase(currentUserName.trim());
     }
 
     private void addIdentifier(String val) {
         if (val == null || val.trim().isEmpty()) return;
         String trimmed = val.trim();
-        myIdentifiers.add(trimmed.toLowerCase(Locale.ROOT));
         myIdentifiers.add(trimmed);
+        myIdentifiers.add(trimmed.toLowerCase(Locale.ROOT));
+
+        // Add without title (Dr., Mrs., Mr., etc.)
+        String cleanTitle = trimmed.toLowerCase(Locale.ROOT)
+                .replaceAll("\\b(dr|mr|mrs|ms|prof)\\b[.]?", "")
+                .trim();
+        if (!cleanTitle.isEmpty()) {
+            myIdentifiers.add(cleanTitle);
+        }
+
+        // Add alphanumeric cleaned token
         String clean = trimmed.replaceAll("[^a-zA-Z0-9]", "").toLowerCase(Locale.ROOT);
         if (!clean.isEmpty()) {
             myIdentifiers.add(clean);
         }
+
+        // If email, add prefix
+        if (trimmed.contains("@")) {
+            String prefix = trimmed.substring(0, trimmed.indexOf('@')).trim().toLowerCase(Locale.ROOT);
+            if (!prefix.isEmpty()) {
+                myIdentifiers.add(prefix);
+            }
+        }
+    }
+
+    private boolean isMyIdentifier(String val) {
+        if (val == null || val.trim().isEmpty()) return false;
+        String normal = val.trim().toLowerCase(Locale.ROOT);
+        return myIdentifiers.contains(normal)
+                || myIdentifiers.contains(val.trim())
+                || normal.equalsIgnoreCase(currentCanonicalId)
+                || normal.equalsIgnoreCase(currentUserId)
+                || normal.equalsIgnoreCase(currentUid)
+                || normal.equalsIgnoreCase(currentUserName);
     }
 
     private void setupRecyclerView() {
@@ -174,7 +264,13 @@ public class TaskDiscussionActivity extends AppCompatActivity
     }
 
     private void listenToFirestoreTasks() {
+        if (tasksListener != null) {
+            tasksListener.remove();
+        }
+
         pbLoadingTasks.setVisibility(View.VISIBLE);
+
+        Log.d(TAG, "Loading task discussions...");
 
         tasksListener = db.collection("task_assignments")
                 .addSnapshotListener((snapshots, error) -> {
@@ -187,42 +283,50 @@ public class TaskDiscussionActivity extends AppCompatActivity
                         if (error instanceof FirebaseFirestoreException) {
                             code = ((FirebaseFirestoreException) error).getCode().name();
                         }
-                        Log.e(TAG, "Operation failed. code=" + code + " message=" + error.getMessage(), error);
+                        Log.e(TAG, "Firestore task_assignments listener error. code=" + code + " message=" + error.getMessage(), error);
                         String friendlyError;
                         if ("PERMISSION_DENIED".equals(code)) {
-                            friendlyError = "Firestore permission denied. Check authentication and Firestore rules.";
+                            friendlyError = "Firestore permission denied. Check authentication.";
                         } else if ("UNAUTHENTICATED".equals(code)) {
-                            friendlyError = "Firebase Authentication session is missing.";
-                        } else if ("UNAVAILABLE".equals(code)) {
-                            friendlyError = "Firebase is temporarily unavailable.";
-                        } else if ("FAILED_PRECONDITION".equals(code)) {
-                            friendlyError = "Firestore configuration/precondition issue.";
+                            friendlyError = "Firebase Authentication session missing.";
                         } else {
                             friendlyError = "Error loading tasks: " + error.getMessage();
                         }
-                        Toast.makeText(TaskDiscussionActivity.this, friendlyError, Toast.LENGTH_LONG).show();
+                        Toast.makeText(TaskDiscussionActivity.this, friendlyError, Toast.LENGTH_SHORT).show();
                         return;
                     }
+
+                    int docCount = snapshots != null ? snapshots.size() : 0;
+                    Log.d(TAG, "Task documents returned = " + docCount);
 
                     if (snapshots == null || snapshots.isEmpty()) {
                         showTasks(new ArrayList<>());
                         return;
                     }
 
+                    boolean isHod = "HOD".equalsIgnoreCase(currentUserRole);
                     Map<String, DiscussionTask> uniqueTasks = new LinkedHashMap<>();
 
                     for (DocumentSnapshot doc : snapshots.getDocuments()) {
                         try {
-                            DiscussionTask task = parseTask(doc);
-                            if (task == null) {
-                                Log.w(TAG, "Task exists but parsing failed or title missing for doc: " + doc.getId());
+                            Log.d(TAG, "Task ID = " + doc.getId());
+                            Log.d(TAG, "Task data = " + doc.getData());
+
+                            // Check assignment matching
+                            boolean assignedToMe = isHod || isDocumentAssignedToMe(doc);
+                            Log.d(TAG, "Task ID: " + doc.getId() + " => assignedToMe = " + assignedToMe);
+
+                            if (!assignedToMe) {
                                 continue;
                             }
 
+                            // Extract groupId (matching CommunicationActivity logic)
                             String groupId = doc.getString("groupTaskId");
-                            if (groupId == null || groupId.trim().isEmpty()) {
-                                groupId = task.getId();
-                            }
+                            if (groupId == null || groupId.trim().isEmpty()) groupId = doc.getString("taskId");
+                            if (groupId == null || groupId.trim().isEmpty()) groupId = doc.getString("id");
+                            if (groupId == null || groupId.trim().isEmpty()) groupId = doc.getId();
+
+                            DiscussionTask task = parseTaskDocument(doc, groupId);
 
                             if (uniqueTasks.containsKey(groupId)) {
                                 mergeTask(uniqueTasks.get(groupId), task);
@@ -231,86 +335,128 @@ public class TaskDiscussionActivity extends AppCompatActivity
                             }
 
                         } catch (Exception e) {
-                            Log.e(TAG, "Task ID: " + doc.getId()
-                                    + ", Firestore path: task_assignments/" + doc.getId()
-                                    + ", Reason: " + e.getMessage(), e);
+                            Log.e(TAG, "Error processing doc: " + doc.getId(), e);
                         }
                     }
 
-                    List<DiscussionTask> matchedTasks = new ArrayList<>();
-                    boolean isHod = "HOD".equalsIgnoreCase(currentUserRole);
+                    List<DiscussionTask> matchedTasks = new ArrayList<>(uniqueTasks.values());
 
-                    for (DiscussionTask task : uniqueTasks.values()) {
-                        if (isHod) {
-                            matchedTasks.add(task);
-                        } else if (isAssignedToTask(task)) {
-                            matchedTasks.add(task);
-                        }
-                    }
-
+                    // Sort newest first
                     Collections.sort(matchedTasks, (a, b) -> Long.compare(b.getTimestamp(), a.getTimestamp()));
                     showTasks(matchedTasks);
                 });
     }
 
-    private boolean isAssignedToTask(DiscussionTask task) {
-        if (task == null) return false;
+    private boolean isDocumentAssignedToMe(DocumentSnapshot doc) {
+        if (doc == null) return false;
 
-        // 1. Check UIDs
-        if (task.getAssignedFacultyUids() != null) {
-            for (String uid : task.getAssignedFacultyUids()) {
-                if (isMyIdentifier(uid)) return true;
+        // 1. Check if assigned to ALL
+        String assignedTo = doc.getString("assignedTo");
+        String faculty = doc.getString("faculty");
+        String assignmentType = doc.getString("assignmentType");
+        if (isAllToken(assignedTo) || isAllToken(faculty) || isAllToken(assignmentType) || Boolean.TRUE.equals(doc.getBoolean("isAll"))) {
+            return true;
+        }
+
+        // 2. Check direct assignedTo / faculty strings
+        if (isMyIdentifier(assignedTo)) return true;
+        if (isMyIdentifier(faculty)) return true;
+
+        // 3. Check assignedFacultyUids list
+        Object uidsObj = doc.get("assignedFacultyUids");
+        if (uidsObj == null) uidsObj = doc.get("facultyUids");
+        if (uidsObj instanceof List) {
+            for (Object item : (List<?>) uidsObj) {
+                if (item != null && isMyIdentifier(item.toString())) return true;
             }
         }
 
-        // 2. Check assigned faculty names/IDs
-        if (task.getAssignedFaculty() != null) {
-            for (String assigned : task.getAssignedFaculty()) {
-                if (isMyIdentifier(assigned)) return true;
-                FacultyUser resolved = FacultyDirectory.resolveByNameOrId(assigned);
-                if (resolved != null && isMyIdentifier(resolved.getUserId())) return true;
+        // 4. Check assignedFacultyIds list
+        Object fidsObj = doc.get("assignedFacultyIds");
+        if (fidsObj == null) fidsObj = doc.get("facultyIds");
+        if (fidsObj instanceof List) {
+            for (Object item : (List<?>) fidsObj) {
+                if (item != null && isMyIdentifier(item.toString())) return true;
             }
         }
 
-        // 3. Check legacy faculty field
-        if (task.getFaculty() != null && !task.getFaculty().trim().isEmpty()) {
-            String[] parts = task.getFaculty().split("[\r\n,]+");
+        // 5. Check allAssignedFaculty / assignedFaculty list
+        Object facListObj = doc.get("allAssignedFaculty");
+        if (facListObj == null) facListObj = doc.get("assignedFaculty");
+        if (facListObj instanceof List) {
+            List<?> list = (List<?>) facListObj;
+            if (list.size() >= FacultyDirectory.FACULTY_NAMES.length) return true;
+            for (Object item : list) {
+                if (item != null) {
+                    String name = item.toString().trim();
+                    if (isAllToken(name)) return true;
+                    if (isMyIdentifier(name)) return true;
+                    FacultyUser resolved = FacultyDirectory.resolveByNameOrId(name);
+                    if (resolved != null && isMyIdentifier(resolved.getUserId())) return true;
+                    if (resolved != null && isMyIdentifier(resolved.getName())) return true;
+                }
+            }
+        }
+
+        // 6. Split multi-name string in assignedTo or faculty
+        if (assignedTo != null && !assignedTo.trim().isEmpty()) {
+            String[] parts = assignedTo.split("[\r\n,]+");
             for (String p : parts) {
-                if (isMyIdentifier(p.trim())) return true;
-                FacultyUser resolved = FacultyDirectory.resolveByNameOrId(p.trim());
-                if (resolved != null && isMyIdentifier(resolved.getUserId())) return true;
+                String pt = p.trim();
+                if (isMyIdentifier(pt)) return true;
+                FacultyUser resolved = FacultyDirectory.resolveByNameOrId(pt);
+                if (resolved != null && (isMyIdentifier(resolved.getUserId()) || isMyIdentifier(resolved.getName()))) return true;
+            }
+        }
+        if (faculty != null && !faculty.trim().isEmpty()) {
+            String[] parts = faculty.split("[\r\n,]+");
+            for (String p : parts) {
+                String pt = p.trim();
+                if (isMyIdentifier(pt)) return true;
+                FacultyUser resolved = FacultyDirectory.resolveByNameOrId(pt);
+                if (resolved != null && (isMyIdentifier(resolved.getUserId()) || isMyIdentifier(resolved.getName()))) return true;
             }
         }
 
         return false;
     }
 
-    private boolean isMyIdentifier(String val) {
-        if (val == null || val.trim().isEmpty()) return false;
-        String normal = val.trim().toLowerCase(Locale.ROOT);
-        return myIdentifiers.contains(normal)
-                || normal.equalsIgnoreCase(currentCanonicalId)
-                || normal.equalsIgnoreCase(currentUserId)
-                || normal.equalsIgnoreCase(currentUid)
-                || normal.equalsIgnoreCase(currentName);
+    private boolean isAllToken(String val) {
+        if (val == null) return false;
+        String t = val.trim().toUpperCase(Locale.ROOT);
+        return t.equals("ALL")
+                || t.equals("ALL FACULTY")
+                || t.equals("ALL FACULTIES")
+                || t.equals("ALL_FACULTY")
+                || t.equals("ALL_FACULTIES")
+                || t.equals("ALL MEMBERS")
+                || t.equals("EVERYONE");
     }
 
-    private DiscussionTask parseTask(DocumentSnapshot doc) {
-        if (doc == null || !doc.exists()) return null;
-
-        String taskId = doc.getString("groupTaskId");
-        if (isBlank(taskId)) taskId = doc.getString("id");
-        if (isBlank(taskId)) taskId = doc.getString("taskId");
-        if (isBlank(taskId)) taskId = doc.getId();
-
+    private DiscussionTask parseTaskDocument(DocumentSnapshot doc, String groupId) {
         String title = doc.getString("taskTitle");
         if (isBlank(title)) title = doc.getString("title");
-        if (isBlank(title)) return null;
+        if (isBlank(title)) title = doc.getString("taskName");
+        if (isBlank(title)) title = "Task " + groupId;
 
         String description = doc.getString("description");
+        if (description == null) description = doc.getString("subtitle");
+        if (description == null) description = doc.getString("message");
+        if (description == null) description = "";
+
         String deadline = doc.getString("deadline");
+        if (deadline == null) deadline = doc.getString("scheduledDateStr");
+        if (deadline == null) deadline = "";
+
         String priority = doc.getString("priority");
+        if (priority == null) priority = "MEDIUM";
+
         String status = doc.getString("status");
+        if (status == null) status = "PENDING";
+
+        String assignedBy = doc.getString("assignedBy");
+        if (isBlank(assignedBy)) assignedBy = doc.getString("sender");
+        if (isBlank(assignedBy)) assignedBy = "HOD (Department Head)";
 
         String assignedTo = doc.getString("assignedTo");
         if (isBlank(assignedTo)) assignedTo = doc.getString("faculty");
@@ -319,12 +465,23 @@ public class TaskDiscussionActivity extends AppCompatActivity
         addStringList(doc.get("allAssignedFaculty"), assignedFaculty);
         addStringList(doc.get("assignedFaculty"), assignedFaculty);
 
-        if (!isBlank(assignedTo) && !assignedFaculty.contains(assignedTo.trim())) {
-            assignedFaculty.add(assignedTo.trim());
+        if (!isBlank(assignedTo)) {
+            String[] parts = assignedTo.split("[\r\n,]+");
+            for (String p : parts) {
+                String pt = p.trim();
+                if (!pt.isEmpty() && !assignedFaculty.contains(pt)) {
+                    assignedFaculty.add(pt);
+                }
+            }
         }
+
+        List<String> assignedFacultyIds = new ArrayList<>();
+        addStringList(doc.get("assignedFacultyIds"), assignedFacultyIds);
+        addStringList(doc.get("facultyIds"), assignedFacultyIds);
 
         List<String> assignedUids = new ArrayList<>();
         addStringList(doc.get("assignedFacultyUids"), assignedUids);
+        addStringList(doc.get("facultyUids"), assignedUids);
 
         int assignedCount = 0;
         Object countObj = doc.get("assignedFacultyCount");
@@ -335,20 +492,52 @@ public class TaskDiscussionActivity extends AppCompatActivity
                 assignedCount = Integer.parseInt(((String) countObj).trim());
             } catch (Exception ignored) {}
         }
+        if (assignedCount <= 0) {
+            assignedCount = assignedFaculty.size();
+        }
+
+        // ALL detection
+        boolean isAll = false;
+        String assignmentType = doc.getString("assignmentType");
+        if (assignmentType != null && assignmentType.toUpperCase(Locale.ROOT).contains("ALL")) {
+            isAll = true;
+        }
+        if (Boolean.TRUE.equals(doc.getBoolean("isAll"))) {
+            isAll = true;
+        }
+        if (isAllToken(assignedTo) || isAllToken(doc.getString("faculty"))) {
+            isAll = true;
+        }
+        for (String f : assignedFaculty) {
+            if (isAllToken(f)) {
+                isAll = true;
+                break;
+            }
+        }
+        if (assignedCount >= FacultyDirectory.FACULTY_NAMES.length || assignedFaculty.size() >= FacultyDirectory.FACULTY_NAMES.length) {
+            isAll = true;
+        }
 
         long timestamp = parseTimestampSafe(doc.get("timestamp"));
+        if (timestamp <= 0) {
+            timestamp = parseTimestampSafe(doc.get("createdAt"));
+        }
 
         return new DiscussionTask(
-                taskId,
+                groupId,
                 title,
                 description,
                 deadline,
                 priority,
                 status,
+                assignedBy,
                 assignedFaculty,
                 assignedUids,
+                assignedFacultyIds,
                 assignedCount,
                 assignedTo != null ? assignedTo : "",
+                assignedTo != null ? assignedTo : "",
+                isAll,
                 timestamp
         );
     }
@@ -396,8 +585,22 @@ public class TaskDiscussionActivity extends AppCompatActivity
             }
         }
 
+        for (String fid : incoming.getAssignedFacultyIds()) {
+            if (!existing.getAssignedFacultyIds().contains(fid)) {
+                existing.getAssignedFacultyIds().add(fid);
+            }
+        }
+
+        if (incoming.isAll()) {
+            existing.setAll(true);
+        }
+
         if (incoming.getAssignedFacultyCount() > existing.getAssignedFacultyCount()) {
             existing.setAssignedFacultyCount(incoming.getAssignedFacultyCount());
+        }
+
+        if (incoming.getTimestamp() > existing.getTimestamp()) {
+            existing.setTimestamp(incoming.getTimestamp());
         }
     }
 
@@ -423,10 +626,35 @@ public class TaskDiscussionActivity extends AppCompatActivity
     public void onTaskClick(DiscussionTask task) {
         if (task == null) return;
 
+        String taskId = task.getId();
+        String taskTitle = task.getTitle();
+        String taskDescription = task.getDescription();
+        String deadline = task.getDeadline();
+        List<String> assignedMembers = task.getAssignedFaculty();
+
+        Log.d("TASK_DISCUSSION", "Current faculty UID = " + currentUid);
+        Log.d("TASK_DISCUSSION", "Task ID = " + taskId);
+        Log.d("TASK_DISCUSSION", "Task title = " + taskTitle);
+        Log.d("TASK_DISCUSSION", "Assigned members = " + assignedMembers);
+        Log.d("TASK_DISCUSSION", "OPENING CHAT WITH TASK ID = " + taskId);
+
         Intent intent = new Intent(this, TaskDiscussionChatActivity.class);
-        intent.putExtra("EXTRA_TASK_ID", task.getId());
-        intent.putExtra("EXTRA_TASK_TITLE", task.getTitle());
-        intent.putExtra("EXTRA_TASK_DEADLINE", task.getDeadline());
+        intent.putExtra("taskId", taskId);
+        intent.putExtra("taskTitle", taskTitle);
+        intent.putExtra("taskDescription", taskDescription);
+        intent.putExtra("deadline", deadline);
+        intent.putExtra("priority", task.getPriority());
+        intent.putStringArrayListExtra("assignedMembers", new ArrayList<>(assignedMembers));
+
+        // Backwards compatibility extras
+        intent.putExtra("EXTRA_TASK_ID", taskId);
+        intent.putExtra("EXTRA_TASK_TITLE", taskTitle);
+        intent.putExtra("EXTRA_TASK_DEADLINE", deadline);
+        intent.putExtra("EXTRA_TASK_PRIORITY", task.getPriority());
+        intent.putExtra("EXTRA_IS_ALL", task.isAll());
+        intent.putStringArrayListExtra("EXTRA_PARTICIPANTS", new ArrayList<>(assignedMembers));
+        intent.putExtra("EXTRA_PARTICIPANT_COUNT", task.getAssignedFacultyCount());
+
         startActivity(intent);
     }
 

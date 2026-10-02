@@ -318,37 +318,87 @@ public class CommunicationActivity extends AppCompatActivity {
     private boolean isDocumentAssignedToMe(com.google.firebase.firestore.DocumentSnapshot doc) {
         if (doc == null) return false;
 
-        // Check assignedTo
+        // 1. Check if assigned to ALL
         String assignedTo = doc.getString("assignedTo");
-        if (isMyIdentifier(assignedTo)) return true;
-
-        // Check faculty
         String faculty = doc.getString("faculty");
+        String assignmentType = doc.getString("assignmentType");
+        if (isAllToken(assignedTo) || isAllToken(faculty) || isAllToken(assignmentType) || Boolean.TRUE.equals(doc.getBoolean("isAll"))) {
+            return true;
+        }
+
+        // 2. Check direct assignedTo / faculty strings
+        if (isMyIdentifier(assignedTo)) return true;
         if (isMyIdentifier(faculty)) return true;
 
-        // Check assignedFacultyUids list
+        // 3. Check assignedFacultyUids list
         Object uidsObj = doc.get("assignedFacultyUids");
+        if (uidsObj == null) uidsObj = doc.get("facultyUids");
         if (uidsObj instanceof java.util.List) {
             for (Object item : (java.util.List<?>) uidsObj) {
                 if (item != null && isMyIdentifier(item.toString())) return true;
             }
         }
 
-        // Check allAssignedFaculty / assignedFaculty list
+        // 4. Check assignedFacultyIds list
+        Object fidsObj = doc.get("assignedFacultyIds");
+        if (fidsObj == null) fidsObj = doc.get("facultyIds");
+        if (fidsObj instanceof java.util.List) {
+            for (Object item : (java.util.List<?>) fidsObj) {
+                if (item != null && isMyIdentifier(item.toString())) return true;
+            }
+        }
+
+        // 5. Check allAssignedFaculty / assignedFaculty list
         Object facListObj = doc.get("allAssignedFaculty");
         if (facListObj == null) facListObj = doc.get("assignedFaculty");
         if (facListObj instanceof java.util.List) {
-            for (Object item : (java.util.List<?>) facListObj) {
+            java.util.List<?> list = (java.util.List<?>) facListObj;
+            if (list.size() >= FacultyDirectory.FACULTY_NAMES.length) return true;
+            for (Object item : list) {
                 if (item != null) {
-                    String name = item.toString();
+                    String name = item.toString().trim();
+                    if (isAllToken(name)) return true;
                     if (isMyIdentifier(name)) return true;
                     FacultyUser resolved = FacultyDirectory.resolveByNameOrId(name);
                     if (resolved != null && isMyIdentifier(resolved.getUserId())) return true;
+                    if (resolved != null && isMyIdentifier(resolved.getName())) return true;
                 }
             }
         }
 
+        // 6. Split multi-name string in assignedTo or faculty
+        if (assignedTo != null && !assignedTo.trim().isEmpty()) {
+            String[] parts = assignedTo.split("[\r\n,]+");
+            for (String p : parts) {
+                String pt = p.trim();
+                if (isMyIdentifier(pt)) return true;
+                FacultyUser resolved = FacultyDirectory.resolveByNameOrId(pt);
+                if (resolved != null && (isMyIdentifier(resolved.getUserId()) || isMyIdentifier(resolved.getName()))) return true;
+            }
+        }
+        if (faculty != null && !faculty.trim().isEmpty()) {
+            String[] parts = faculty.split("[\r\n,]+");
+            for (String p : parts) {
+                String pt = p.trim();
+                if (isMyIdentifier(pt)) return true;
+                FacultyUser resolved = FacultyDirectory.resolveByNameOrId(pt);
+                if (resolved != null && (isMyIdentifier(resolved.getUserId()) || isMyIdentifier(resolved.getName()))) return true;
+            }
+        }
+
         return false;
+    }
+
+    private boolean isAllToken(String val) {
+        if (val == null) return false;
+        String t = val.trim().toUpperCase(Locale.ROOT);
+        return t.equals("ALL")
+                || t.equals("ALL FACULTY")
+                || t.equals("ALL FACULTIES")
+                || t.equals("ALL_FACULTY")
+                || t.equals("ALL_FACULTIES")
+                || t.equals("ALL MEMBERS")
+                || t.equals("EVERYONE");
     }
 
     @Override

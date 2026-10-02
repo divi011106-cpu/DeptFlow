@@ -23,7 +23,7 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Top metadata row: Task ID, Priority badge, & Status badge -->
+        <!-- Top metadata row: Task ID, Task Type badge, Priority badge, & Status badge -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -42,6 +42,19 @@
                 android:textSize="12sp"
                 android:textStyle="bold"
                 tools:text="TSK-2026-4812" />
+
+            <TextView
+                android:id="@+id/tvTaskType"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="4dp"
+                android:background="@drawable/bg_stat_inprogress"
+                android:textColor="@color/stat_inprogress_text"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                tools:text="Team Task" />
 
             <View
                 android:layout_width="0dp"
@@ -87,8 +100,19 @@
             android:textStyle="bold"
             android:maxLines="2"
             android:ellipsize="end"
+            android:layout_marginBottom="4dp"
+            tools:text="📋 Department Event" />
+
+        <!-- Assigned by HOD -->
+        <TextView
+            android:id="@+id/tvAssignedBy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold"
             android:layout_marginBottom="6dp"
-            tools:text="Department NAAC Accreditation Criteria 3 Documentation" />
+            tools:text="Assigned by: HOD" />
 
         <!-- Task Description -->
         <TextView
@@ -100,34 +124,53 @@
             android:maxLines="2"
             android:ellipsize="end"
             android:lineSpacingExtra="2dp"
-            android:layout_marginBottom="10dp"
-            tools:text="Coordinate research publications, faculty funding details, and departmental awards for criteria submission." />
+            android:layout_marginBottom="8dp"
+            tools:text="Organize team coordination and schedule for the upcoming event." />
 
-        <!-- Assigned Faculty info -->
+        <!-- Participants Section -->
         <LinearLayout
+            android:id="@+id/layoutParticipants"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="12dp">
+            android:orientation="vertical"
+            android:background="#0A1E3A8A"
+            android:padding="10dp"
+            android:layout_marginBottom="10dp">
 
-            <ImageView
-                android:layout_width="14dp"
-                android:layout_height="14dp"
-                android:src="@drawable/ic_person"
-                android:layout_marginEnd="6dp"
-                app:tint="@color/text_tertiary"
-                android:contentDescription="@null" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:src="@drawable/ic_person"
+                    android:layout_marginEnd="6dp"
+                    app:tint="@color/primary"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/tvParticipantsHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/primary"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    tools:text="Team Members (3):" />
+
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/tvAssignedFaculty"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/text_primary"
                 android:textSize="12sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                tools:text="Assigned: Dr. R. Vijayalakshmi, Dr. T. Sarnya" />
+                android:lineSpacingExtra="2dp"
+                tools:text="• Dr. R. Vijayalakshmi\n• Dr. R. Raja Sudharsan\n• Dr. K. M. Alaaudeen" />
 
         </LinearLayout>
 
@@ -161,7 +204,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                tools:text="Due: 28 Sep 2026" />
+                tools:text="Deadline: 25 Sep 2026" />
 
             <!-- Discuss Action Pill -->
             <LinearLayout
@@ -182,9 +225,10 @@
                     android:contentDescription="@null" />
 
                 <TextView
+                    android:id="@+id/tvOpenDiscussion"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Discuss"
+                    android:text="Open Discussion"
                     android:textColor="@color/primary"
                     android:textSize="12sp"
                     android:textStyle="bold" />

@@ -7,6 +7,58 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function hasUserDoc() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return hasUserDoc() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
+    }
+
+    function isHod() {
+      return isAuthenticated() && (
+        getUserData().get('role', '') == 'HOD' ||
+        getUserData().get('role', '') == 'hod'
+      );
+    }
+
+    // Validates whether the authenticated user is an assigned participant for the given task
+    function isTaskParticipant(taskId) {
+      return isAuthenticated() && (
+        isHod() ||
+        // 1. Direct match on task_assignments/{taskId}
+        (exists(/databases/$(database)/documents/task_assignments/$(taskId)) && (
+          get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('assignedTo', '') == 'ALL' ||
+          get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('assignmentType', '') == 'ALL' ||
+          get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('isAll', false) == true ||
+          (hasUserDoc() && getUserData().get('name', '') in get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('allAssignedFaculty', [])) ||
+          (hasUserDoc() && getUserData().get('name', '') in get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('assignedFaculty', [])) ||
+          (hasUserDoc() && getUserData().get('name', '') == get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('assignedTo', '')) ||
+          (hasUserDoc() && getUserData().get('name', '') == get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('faculty', '')) ||
+          (hasUserDoc() && getUserData().get('userId', '') in get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('assignedFacultyIds', [])) ||
+          request.auth.uid in get(/databases/$(database)/documents/task_assignments/$(taskId)).data.get('assignedFacultyUids', [])
+        )) ||
+        // 2. Match on multi-assigned document task_assignments/{taskId + '_1'}
+        (exists(/databases/$(database)/documents/task_assignments/$(taskId + '_1')) && (
+          get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('assignedTo', '') == 'ALL' ||
+          get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('assignmentType', '') == 'ALL' ||
+          get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('isAll', false) == true ||
+          (hasUserDoc() && getUserData().get('name', '') in get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('allAssignedFaculty', [])) ||
+          (hasUserDoc() && getUserData().get('name', '') in get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('assignedFaculty', [])) ||
+          (hasUserDoc() && getUserData().get('name', '') == get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('assignedTo', '')) ||
+          (hasUserDoc() && getUserData().get('name', '') == get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('faculty', '')) ||
+          (hasUserDoc() && getUserData().get('userId', '') in get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('assignedFacultyIds', [])) ||
+          request.auth.uid in get(/databases/$(database)/documents/task_assignments/$(taskId + '_1')).data.get('assignedFacultyUids', [])
+        )) ||
+        // 3. Match on taskDiscussions/{taskId} parent metadata
+        (exists(/databases/$(database)/documents/taskDiscussions/$(taskId)) && (
+          get(/databases/$(database)/documents/taskDiscussions/$(taskId)).data.get('isAll', false) == true ||
+          (hasUserDoc() && getUserData().get('name', '') in get(/databases/$(database)/documents/taskDiscussions/$(taskId)).data.get('participants', [])) ||
+          request.auth.uid in get(/databases/$(database)/documents/taskDiscussions/$(taskId)).data.get('participantUids', [])
+        ))
+      );
+    }
+
     // User profile documents
     match /users/{userId} {
       allow read, write: if isAuthenticated();
@@ -41,12 +93,41 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
-    // Task Discussion Group Chat & Messages
-    match /task_discussions/{taskId} {
-      allow read, write: if isAuthenticated();
+    // Task Discussion Group Chat (taskDiscussions)
+    match /taskDiscussions/{taskId} {
+      allow read, write: if isAuthenticated() && isTaskParticipant(taskId);
 
       match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
+        allow read: if isAuthenticated() && isTaskParticipant(taskId);
+        allow create: if isAuthenticated() && isTaskParticipant(taskId) && (
+          request.resource.data.senderUid == request.auth.uid ||
+          request.resource.data.senderId == request.auth.uid ||
+          (hasUserDoc() && request.resource.data.senderId == getUserData().get('userId', '')) ||
+          (hasUserDoc() && request.resource.data.senderName == getUserData().get('name', ''))
+        );
+        allow update, delete: if isAuthenticated() && (
+          resource.data.senderUid == request.auth.uid ||
+          isHod()
+        );
+      }
+    }
+
+    // Task Discussion Group Chat (task_discussions compatibility)
+    match /task_discussions/{taskId} {
+      allow read, write: if isAuthenticated() && isTaskParticipant(taskId);
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && isTaskParticipant(taskId);
+        allow create: if isAuthenticated() && isTaskParticipant(taskId) && (
+          request.resource.data.senderUid == request.auth.uid ||
+          request.resource.data.senderId == request.auth.uid ||
+          (hasUserDoc() && request.resource.data.senderId == getUserData().get('userId', '')) ||
+          (hasUserDoc() && request.resource.data.senderName == getUserData().get('name', ''))
+        );
+        allow update, delete: if isAuthenticated() && (
+          resource.data.senderUid == request.auth.uid ||
+          isHod()
+        );
       }
     }
 

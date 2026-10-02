@@ -3,6 +3,9 @@ package com.example.deptflow.communication.services;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -20,8 +23,10 @@ import com.example.deptflow.R;
 import com.example.deptflow.communication.ChatActivity;
 import com.example.deptflow.communication.TaskDiscussionChatActivity;
 import com.example.deptflow.communication.models.AppNotification;
+import com.example.deptflow.feature.faculty.TaskDetailsActivity;
 import com.google.android.material.button.MaterialButton;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -64,6 +69,17 @@ public class InAppBannerManager {
     private static void displayBannerInternal(Activity activity, AppNotification notification) {
         dismissActiveBanner();
 
+        // Play short notification sound once per new event
+        try {
+            Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            Ringtone ringtone = RingtoneManager.getRingtone(activity.getApplicationContext(), soundUri);
+            if (ringtone != null) {
+                ringtone.play();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Notification sound playback error: " + e.getMessage());
+        }
+
         ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
         View banner = LayoutInflater.from(activity).inflate(R.layout.layout_in_app_banner, decor, false);
 
@@ -75,52 +91,102 @@ public class InAppBannerManager {
         MaterialButton btnDismiss = banner.findViewById(R.id.btnBannerDismiss);
         MaterialButton btnAction = banner.findViewById(R.id.btnBannerAction);
 
-        String sender = notification.getSender();
-        if (sender == null || sender.trim().isEmpty()) {
-            sender = "Faculty Member";
-        }
-        tvTitle.setText(sender);
-
-        String initial = sender.length() > 0 ? sender.substring(0, 1).toUpperCase(Locale.ROOT) : "F";
-        tvInitial.setText(initial);
-
         String msg = notification.getMessage();
         if (msg == null || msg.trim().isEmpty()) {
             msg = notification.getSubtitle();
         }
-        tvMessage.setText(msg != null ? msg : "New notification");
 
-        String type = notification.getType();
-        if (AppNotification.TYPE_CHAT.equalsIgnoreCase(type)) {
+        if (notification.isChat()) {
+            String sender = notification.getSender();
+            if (sender == null || sender.trim().isEmpty()) {
+                sender = "Faculty Member";
+            }
+            tvTitle.setText(sender);
+            tvInitial.setText(sender.length() > 0 ? sender.substring(0, 1).toUpperCase(Locale.ROOT) : "F");
+
             tvCategory.setText("💬 NEW MESSAGE");
             tvCategory.setTextColor(ContextCompat.getColor(activity, R.color.primary));
-            btnAction.setText("Open Chat");
+
+            String chatText = msg != null ? msg.trim() : "New message";
+            if (!chatText.startsWith("\"")) {
+                chatText = "\"" + chatText + "\"";
+            }
+            tvMessage.setText(chatText);
+
+            btnAction.setText("OPEN CHAT");
             btnAction.setOnClickListener(v -> {
                 dismissActiveBanner();
                 Intent intent = new Intent(activity, ChatActivity.class);
                 intent.putExtra("facultyName", notification.getSender());
                 intent.putExtra("facultyId", notification.getSenderId());
                 intent.putExtra("chatId", notification.getChatId());
+                intent.putExtra("senderName", notification.getSender());
+                intent.putExtra("senderId", notification.getSenderId());
                 activity.startActivity(intent);
             });
-        } else if (AppNotification.TYPE_TASK.equalsIgnoreCase(type)) {
-            tvCategory.setText("📢 NEW TASK ASSIGNED");
-            tvCategory.setTextColor(ContextCompat.getColor(activity, R.color.priority_high_text));
-            btnAction.setText("View Task");
+
+        } else if (notification.isTeamTask()) {
+            String title = notification.getSubtitle() != null && !notification.getSubtitle().trim().isEmpty()
+                    ? notification.getSubtitle() : notification.getTitle();
+            tvTitle.setText(title);
+            tvInitial.setText("👥");
+
+            tvCategory.setText("👥 NEW TEAM TASK");
+            tvCategory.setTextColor(ContextCompat.getColor(activity, R.color.primary));
+
+            String desc = (msg != null && !msg.trim().isEmpty()) ? msg.trim() : "HOD assigned you to a team task.";
+            tvMessage.setText(desc);
+
+            btnAction.setText("OPEN DISCUSSION");
             btnAction.setOnClickListener(v -> {
                 dismissActiveBanner();
                 Intent intent = new Intent(activity, TaskDiscussionChatActivity.class);
+                intent.putExtra("taskId", notification.getTaskId());
+                intent.putExtra("taskTitle", title);
+                intent.putExtra("deadline", notification.getDeadline());
+                intent.putExtra("priority", notification.getPriority());
                 intent.putExtra("EXTRA_TASK_ID", notification.getTaskId());
-                intent.putExtra("EXTRA_TASK_TITLE", notification.getSubtitle());
+                intent.putExtra("EXTRA_TASK_TITLE", title);
                 intent.putExtra("EXTRA_TASK_DEADLINE", notification.getDeadline());
                 intent.putExtra("EXTRA_TASK_PRIORITY", notification.getPriority());
-                intent.putExtra("taskName", notification.getSubtitle());
+                intent.putExtra("taskName", title);
+                intent.putStringArrayListExtra("assignedMembers", new ArrayList<>(notification.getAssignedMembers()));
                 activity.startActivity(intent);
             });
-        } else {
-            tvCategory.setText("🔔 NOTIFICATION");
+
+        } else if (notification.isTaskAssignment()) {
+            String title = notification.getSubtitle() != null && !notification.getSubtitle().trim().isEmpty()
+                    ? notification.getSubtitle() : notification.getTitle();
+            tvTitle.setText(title);
+            tvInitial.setText("📋");
+
+            tvCategory.setText("📋 NEW TASK ASSIGNED");
             tvCategory.setTextColor(ContextCompat.getColor(activity, R.color.primary));
-            btnAction.setText("View");
+
+            String desc = msg != null ? msg.trim() : "";
+            String deadline = notification.getDeadline();
+            if (deadline != null && !deadline.trim().isEmpty()) {
+                if (!desc.isEmpty()) desc += " • ";
+                desc += "Deadline: " + deadline.trim();
+            }
+            tvMessage.setText(!desc.isEmpty() ? desc : "HOD assigned a new task to you.");
+
+            btnAction.setText("OPEN TASK");
+            btnAction.setOnClickListener(v -> {
+                dismissActiveBanner();
+                Intent intent = new Intent(activity, TaskDetailsActivity.class);
+                intent.putExtra(TaskDetailsActivity.EXTRA_TASK_ID, notification.getTaskId());
+                intent.putExtra("taskId", notification.getTaskId());
+                activity.startActivity(intent);
+            });
+
+        } else {
+            tvTitle.setText(notification.getTitle());
+            tvInitial.setText("📢");
+            tvCategory.setText("🔔 ANNOUNCEMENT");
+            tvCategory.setTextColor(ContextCompat.getColor(activity, R.color.primary));
+            tvMessage.setText(msg != null ? msg : "New update");
+            btnAction.setText("VIEW");
             btnAction.setOnClickListener(v -> dismissActiveBanner());
         }
 

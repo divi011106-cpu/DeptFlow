@@ -20,6 +20,8 @@
     <color name="text_secondary">#64748B</color>
     <color name="text_tertiary">#94A3B8</color>
     <color name="text_on_primary">#FFFFFF</color>
+    <color name="chat_tick_read">#34B7F1</color>
+    <color name="chat_tick_delivered">#64748B</color>
 
     <!-- Status Colors -->
     <!-- Pending (Amber/Yellow) -->

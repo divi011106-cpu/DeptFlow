@@ -60,6 +60,77 @@
 
     </LinearLayout>
 
+    <!-- Team Members Header Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardTeamMembers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="4dp"
+        app:cardBackgroundColor="@color/surface_card"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="1dp"
+        app:strokeColor="@color/card_stroke"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_person"
+                    android:layout_marginEnd="6dp"
+                    app:tint="@color/primary"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/tvTeamMembersHeader"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textColor="@color/primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    tools:text="Members (3)" />
+
+                <TextView
+                    android:id="@+id/tvChatDeadline"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:visibility="gone"
+                    tools:text="Deadline: 25 Sep 2026"
+                    tools:visibility="visible" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvTeamMembersList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:lineSpacingExtra="2dp"
+                tools:text="• Dr. R. Vijayalakshmi\n• Dr. R. Raja Sudharsan\n• Dr. K. M. Alaaudeen" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
     <!-- Messages Container Area -->
     <FrameLayout
         android:layout_width="match_parent"
@@ -97,15 +168,17 @@
                 android:layout_marginBottom="12dp" />
 
             <TextView
+                android:id="@+id/tvEmptyChatTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="No discussion yet"
+                android:text="No messages yet"
                 android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="4dp" />
 
             <TextView
+                android:id="@+id/tvEmptyChatSubtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Start the discussion for this task."
@@ -138,10 +211,21 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="12dp"
+        android:paddingHorizontal="8dp"
         android:paddingVertical="8dp"
         android:background="@color/surface"
         android:elevation="8dp">
+
+        <!-- Emoji Button -->
+        <ImageButton
+            android:id="@+id/btnDiscussionEmoji"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_emoji"
+            app:tint="@color/text_secondary"
+            android:contentDescription="Select emoji"
+            android:padding="10dp" />
 
         <EditText
             android:id="@+id/etDiscussionMessage"
@@ -154,8 +238,8 @@
             android:textColor="@color/text_primary"
             android:textSize="15sp"
             android:background="@drawable/bg_chat_input"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
             android:paddingTop="10dp"
             android:paddingBottom="10dp"
             android:inputType="textCapSentences|textMultiLine"
@@ -172,6 +256,29 @@
             android:src="@drawable/ic_send"
             android:contentDescription="Send discussion message"
             android:elevation="2dp" />
+
+    </LinearLayout>
+
+    <!-- Emoji Picker Container -->
+    <LinearLayout
+        android:id="@+id/layoutEmojiPicker"
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        android:orientation="vertical"
+        android:background="@color/surface"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvEmojiPicker"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:padding="8dp" />
 
     </LinearLayout>
 

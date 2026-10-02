@@ -51,71 +51,148 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
     public void onBindViewHolder(@NonNull NotificationViewHolder holder, int position) {
         AppNotification notification = notificationList.get(position);
 
-        // Subtitle (Task title or sender subject)
-        holder.tvNotificationSubtitle.setText(notification.getSubtitle());
-
-        // Message snippet
-        String message = notification.getMessage();
-        if (message == null || message.trim().isEmpty()) {
-            holder.tvNotificationMessage.setVisibility(View.GONE);
-        } else {
-            holder.tvNotificationMessage.setVisibility(View.VISIBLE);
-            holder.tvNotificationMessage.setText(message.trim());
+        // Subtitle (Task title or sender name)
+        String subtitle = notification.getSubtitle();
+        if (subtitle == null || subtitle.trim().isEmpty()) {
+            subtitle = notification.getTitle();
         }
+        holder.tvNotificationSubtitle.setText(subtitle);
 
         // Timestamp
         holder.tvNotificationTime.setText(notification.getFormattedDate());
 
-        // Type badge & Action button text
-        String type = notification.getType();
-        if (AppNotification.TYPE_CHAT.equalsIgnoreCase(type)) {
-            holder.tvNotificationType.setText("💬 FACULTY CHAT");
+        // Message snippet
+        String message = notification.getMessage();
+
+        // Bind based on exact notification type: CHAT_MESSAGE vs TEAM_TASK vs TASK_ASSIGNMENT
+        if (notification.isChat()) {
+            holder.tvNotificationType.setText("💬 NEW MESSAGE");
             holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_inprogress);
             holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.stat_inprogress_text));
+
+            // Sender as title/subtitle
+            String sender = notification.getSender();
+            if (sender != null && !sender.trim().isEmpty()) {
+                holder.tvNotificationSubtitle.setText(sender);
+            }
+
+            // Chat message snippet with quotes
+            if (message != null && !message.trim().isEmpty()) {
+                holder.tvNotificationMessage.setVisibility(View.VISIBLE);
+                String formattedMsg = message.trim();
+                if (!formattedMsg.startsWith("\"")) {
+                    formattedMsg = "\"" + formattedMsg + "\"";
+                }
+                holder.tvNotificationMessage.setText(formattedMsg);
+            } else {
+                holder.tvNotificationMessage.setVisibility(View.GONE);
+            }
+
+            holder.tvNotificationAssignedBy.setVisibility(View.GONE);
+            holder.tvNotificationTeamMembers.setVisibility(View.GONE);
+            holder.tvNotificationStatus.setVisibility(View.GONE);
             holder.tvNotificationDeadline.setVisibility(View.GONE);
             holder.tvNotificationPriority.setVisibility(View.GONE);
-            holder.btnPrimaryAction.setText("Open Chat");
+            holder.btnPrimaryAction.setText("OPEN CHAT");
             holder.btnPrimaryAction.setIcon(null);
-        } else if (AppNotification.TYPE_ANNOUNCEMENT.equalsIgnoreCase(type)) {
-            holder.tvNotificationType.setText("🔔 ANNOUNCEMENT");
-            holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_pending);
-            holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.stat_pending_text));
-            holder.tvNotificationDeadline.setVisibility(View.GONE);
-            holder.tvNotificationPriority.setVisibility(View.GONE);
-            holder.btnPrimaryAction.setText("View Details");
-        } else {
-            holder.tvNotificationType.setText("📢 TASK ASSIGNMENT");
+
+        } else if (notification.isTeamTask()) {
+            holder.tvNotificationType.setText("👥 TEAM TASK");
             holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_total);
             holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.primary));
-            holder.btnPrimaryAction.setText("View Task");
+
+            // Subtitle: Task title
+            holder.tvNotificationSubtitle.setText(subtitle);
+
+            // Assigned by
+            holder.tvNotificationAssignedBy.setVisibility(View.VISIBLE);
+            String sender = notification.getSender();
+            holder.tvNotificationAssignedBy.setText("Assigned by: " + (sender != null && !sender.trim().isEmpty() ? sender.trim() : "HOD"));
+
+            // Team members list
+            String teamSummary = notification.getTeamMembersSummary();
+            if (teamSummary != null && !teamSummary.trim().isEmpty()) {
+                holder.tvNotificationTeamMembers.setVisibility(View.VISIBLE);
+                holder.tvNotificationTeamMembers.setText(teamSummary);
+            } else {
+                holder.tvNotificationTeamMembers.setVisibility(View.GONE);
+            }
+
+            // Message / Description
+            if (message != null && !message.trim().isEmpty()) {
+                holder.tvNotificationMessage.setVisibility(View.VISIBLE);
+                holder.tvNotificationMessage.setText(message.trim());
+            } else {
+                holder.tvNotificationMessage.setVisibility(View.GONE);
+            }
+
+            holder.tvNotificationStatus.setVisibility(View.GONE);
 
             // Deadline
-            String deadline = notification.getDeadline();
-            if (deadline != null && !deadline.trim().isEmpty()) {
-                holder.tvNotificationDeadline.setVisibility(View.VISIBLE);
-                holder.tvNotificationDeadline.setText("Due: " + deadline.trim());
-            } else {
-                holder.tvNotificationDeadline.setVisibility(View.GONE);
-            }
+            bindDeadline(holder, notification.getDeadline());
 
             // Priority
-            String priority = notification.getPriority();
-            if (priority != null && !priority.trim().isEmpty()) {
-                holder.tvNotificationPriority.setVisibility(View.VISIBLE);
-                holder.tvNotificationPriority.setText(priority.toUpperCase());
-                if ("HIGH".equalsIgnoreCase(priority)) {
-                    holder.tvNotificationPriority.setBackgroundResource(R.drawable.bg_priority_high);
-                    holder.tvNotificationPriority.setTextColor(ContextCompat.getColor(context, R.color.priority_high_text));
-                } else if ("LOW".equalsIgnoreCase(priority)) {
-                    holder.tvNotificationPriority.setBackgroundResource(R.drawable.bg_priority_low);
-                    holder.tvNotificationPriority.setTextColor(ContextCompat.getColor(context, R.color.priority_low_text));
-                } else {
-                    holder.tvNotificationPriority.setBackgroundResource(R.drawable.bg_priority_medium);
-                    holder.tvNotificationPriority.setTextColor(ContextCompat.getColor(context, R.color.priority_medium_text));
-                }
+            bindPriority(holder, notification.getPriority());
+
+            holder.btnPrimaryAction.setText("OPEN DISCUSSION");
+            holder.btnPrimaryAction.setIcon(null);
+
+        } else if (AppNotification.TYPE_ANNOUNCEMENT.equalsIgnoreCase(notification.getType())) {
+            holder.tvNotificationType.setText("📢 ANNOUNCEMENT");
+            holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_pending);
+            holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.stat_pending_text));
+
+            if (message != null && !message.trim().isEmpty()) {
+                holder.tvNotificationMessage.setVisibility(View.VISIBLE);
+                holder.tvNotificationMessage.setText(message.trim());
             } else {
-                holder.tvNotificationPriority.setVisibility(View.GONE);
+                holder.tvNotificationMessage.setVisibility(View.GONE);
             }
+
+            holder.tvNotificationAssignedBy.setVisibility(View.GONE);
+            holder.tvNotificationTeamMembers.setVisibility(View.GONE);
+            holder.tvNotificationStatus.setVisibility(View.GONE);
+            holder.tvNotificationDeadline.setVisibility(View.GONE);
+            holder.tvNotificationPriority.setVisibility(View.GONE);
+            holder.btnPrimaryAction.setText("VIEW DETAILS");
+            holder.btnPrimaryAction.setIcon(null);
+
+        } else {
+            // Individual TASK ASSIGNMENT
+            holder.tvNotificationType.setText("📋 TASK ASSIGNMENT");
+            holder.tvNotificationType.setBackgroundResource(R.drawable.bg_stat_total);
+            holder.tvNotificationType.setTextColor(ContextCompat.getColor(context, R.color.primary));
+
+            holder.tvNotificationSubtitle.setText(subtitle);
+
+            // Message / Description
+            if (message != null && !message.trim().isEmpty()) {
+                holder.tvNotificationMessage.setVisibility(View.VISIBLE);
+                holder.tvNotificationMessage.setText(message.trim());
+            } else {
+                holder.tvNotificationMessage.setVisibility(View.GONE);
+            }
+
+            holder.tvNotificationAssignedBy.setVisibility(View.GONE);
+            holder.tvNotificationTeamMembers.setVisibility(View.GONE);
+
+            // Status
+            String status = notification.getStatus();
+            if (status != null && !status.trim().isEmpty()) {
+                holder.tvNotificationStatus.setVisibility(View.VISIBLE);
+                holder.tvNotificationStatus.setText("Status: " + status.trim().toUpperCase());
+            } else {
+                holder.tvNotificationStatus.setVisibility(View.GONE);
+            }
+
+            // Deadline
+            bindDeadline(holder, notification.getDeadline());
+
+            // Priority
+            bindPriority(holder, notification.getPriority());
+
+            holder.btnPrimaryAction.setText("OPEN TASK");
+            holder.btnPrimaryAction.setIcon(null);
         }
 
         // Unread styling
@@ -140,7 +217,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             }
         });
 
-        // Button action: Open Chat / View Task
+        // Button action: Open Chat / Open Discussion / Open Task
         holder.btnPrimaryAction.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onNotificationClick(notification);
@@ -160,6 +237,34 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
                 listener.onNotificationDismiss(notification);
             }
         });
+    }
+
+    private void bindDeadline(NotificationViewHolder holder, String deadline) {
+        if (deadline != null && !deadline.trim().isEmpty()) {
+            holder.tvNotificationDeadline.setVisibility(View.VISIBLE);
+            holder.tvNotificationDeadline.setText("📅 Due: " + deadline.trim());
+        } else {
+            holder.tvNotificationDeadline.setVisibility(View.GONE);
+        }
+    }
+
+    private void bindPriority(NotificationViewHolder holder, String priority) {
+        if (priority != null && !priority.trim().isEmpty()) {
+            holder.tvNotificationPriority.setVisibility(View.VISIBLE);
+            holder.tvNotificationPriority.setText(priority.trim().toUpperCase());
+            if ("HIGH".equalsIgnoreCase(priority)) {
+                holder.tvNotificationPriority.setBackgroundResource(R.drawable.bg_priority_high);
+                holder.tvNotificationPriority.setTextColor(ContextCompat.getColor(context, R.color.priority_high_text));
+            } else if ("LOW".equalsIgnoreCase(priority)) {
+                holder.tvNotificationPriority.setBackgroundResource(R.drawable.bg_priority_low);
+                holder.tvNotificationPriority.setTextColor(ContextCompat.getColor(context, R.color.priority_low_text));
+            } else {
+                holder.tvNotificationPriority.setBackgroundResource(R.drawable.bg_priority_medium);
+                holder.tvNotificationPriority.setTextColor(ContextCompat.getColor(context, R.color.priority_medium_text));
+            }
+        } else {
+            holder.tvNotificationPriority.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -188,7 +293,10 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         View viewUnreadDot;
         TextView tvNotificationTime;
         TextView tvNotificationSubtitle;
+        TextView tvNotificationAssignedBy;
+        TextView tvNotificationTeamMembers;
         TextView tvNotificationMessage;
+        TextView tvNotificationStatus;
         TextView tvNotificationPriority;
         TextView tvNotificationDeadline;
         MaterialButton btnPrimaryAction;
@@ -202,7 +310,10 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             viewUnreadDot = itemView.findViewById(R.id.viewUnreadDot);
             tvNotificationTime = itemView.findViewById(R.id.tvNotificationTime);
             tvNotificationSubtitle = itemView.findViewById(R.id.tvNotificationSubtitle);
+            tvNotificationAssignedBy = itemView.findViewById(R.id.tvNotificationAssignedBy);
+            tvNotificationTeamMembers = itemView.findViewById(R.id.tvNotificationTeamMembers);
             tvNotificationMessage = itemView.findViewById(R.id.tvNotificationMessage);
+            tvNotificationStatus = itemView.findViewById(R.id.tvNotificationStatus);
             tvNotificationPriority = itemView.findViewById(R.id.tvNotificationPriority);
             tvNotificationDeadline = itemView.findViewById(R.id.tvNotificationDeadline);
             btnPrimaryAction = itemView.findViewById(R.id.btnPrimaryAction);

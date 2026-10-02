@@ -321,23 +321,30 @@ public class NotificationsActivity extends AppCompatActivity
 
                         boolean isRead = readSet.contains(notificationId);
 
-                        String message = description;
-                        if (!status.isEmpty()) {
-                            if (!message.isEmpty()) message += "\n";
-                            message += "Status: " + status;
-                        }
+                        boolean isAll = Boolean.TRUE.equals(doc.getBoolean("isAll"))
+                                || "ALL".equalsIgnoreCase(getString(doc, "facultyType"));
+                        boolean isTeamTask = isAll || assignedNames.size() > 1;
+
+                        String notifType = isTeamTask ? AppNotification.TYPE_TEAM_TASK : AppNotification.TYPE_TASK_ASSIGNMENT;
+                        String notifTitle = isTeamTask ? "Team Task" : "Task Assignment";
+
+                        String assignedBy = getString(doc, "assignedBy");
+                        if (assignedBy.isEmpty()) assignedBy = "HOD";
 
                         AppNotification notification = new AppNotification(
                                 notificationId,
-                                AppNotification.TYPE_TASK,
-                                "Task Assignment",
+                                notifType,
+                                notifTitle,
                                 title,
-                                message,
+                                description,
                                 deadline,
                                 priority,
+                                status,
                                 timestamp,
-                                "HOD (Department Head)",
+                                assignedBy,
                                 groupId,
+                                assignedNames,
+                                isAll,
                                 isRead
                         );
 
@@ -511,15 +518,39 @@ public class NotificationsActivity extends AppCompatActivity
         notification.setRead(true);
         if (adapter != null) adapter.notifyDataSetChanged();
 
-        if (AppNotification.TYPE_CHAT.equalsIgnoreCase(notification.getType())) {
-            // Open private chat
+        if (notification.isChat()) {
+            // Open faculty direct chat
             Intent intent = new Intent(this, ChatActivity.class);
             intent.putExtra("facultyName", notification.getSender());
             intent.putExtra("facultyId", notification.getSenderId());
             intent.putExtra("chatId", notification.getChatId());
+            intent.putExtra("senderName", notification.getSender());
+            intent.putExtra("senderId", notification.getSenderId());
             startActivity(intent);
+        } else if (notification.isTeamTask()) {
+            // Open Shared Team Task Discussion
+            String taskId = notification.getTaskId();
+            if (taskId != null && !taskId.trim().isEmpty()) {
+                String title = notification.getSubtitle() != null && !notification.getSubtitle().trim().isEmpty()
+                        ? notification.getSubtitle() : notification.getTitle();
+                Intent intent = new Intent(this, TaskDiscussionChatActivity.class);
+                intent.putExtra("taskId", taskId.trim());
+                intent.putExtra("taskTitle", title);
+                intent.putExtra("deadline", notification.getDeadline());
+                intent.putExtra("priority", notification.getPriority());
+                intent.putExtra("EXTRA_TASK_ID", taskId.trim());
+                intent.putExtra("EXTRA_TASK_TITLE", title);
+                intent.putExtra("EXTRA_TASK_DEADLINE", notification.getDeadline());
+                intent.putExtra("EXTRA_TASK_PRIORITY", notification.getPriority());
+                intent.putExtra("taskName", title);
+                intent.putStringArrayListExtra("assignedMembers", new ArrayList<>(notification.getAssignedMembers()));
+                startActivity(intent);
+            } else {
+                Intent intent = new Intent(this, TaskDiscussionActivity.class);
+                startActivity(intent);
+            }
         } else {
-            // Open existing Faculty Dashboard / My Task / Task Details Activity (Problem 4 / Step 6 / Step 7)
+            // Open Existing Faculty Task View (TaskDetailsActivity)
             String taskId = notification.getTaskId();
             if (taskId != null && !taskId.trim().isEmpty()) {
                 Intent intent = new Intent(this, TaskDetailsActivity.class);
